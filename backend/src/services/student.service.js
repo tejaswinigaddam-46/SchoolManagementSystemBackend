@@ -1038,14 +1038,14 @@ const getStudentsByFilters = async (filters) => {
                     u.last_name,
                     se.admission_number,
                     se.academic_year_id,
-                    se.class_name,
+                    c.class_name,
                     se.section_id,
                     se.roll_number,
                     se.admission_date
                 FROM users u
                 INNER JOIN student_enrollment se ON u.username = se.username
                 INNER JOIN user_statuses us ON u.username = us.username AND us.campus_id = se.campus_id
-                INNER JOIN classes c ON se.class_name = c.class_name
+                INNER JOIN classes c ON se.class_id = c.class_id
                 WHERE u.tenant_id = $1 
                     AND se.campus_id = $2
                     AND se.academic_year_id = $3
@@ -1068,7 +1068,7 @@ const getStudentsByFilters = async (filters) => {
                         u.last_name,
                         se.admission_number,
                         se.academic_year_id,
-                        se.class_name,
+                        c.class_name,
                         se.section_id,
                         cs.section_name,
                         se.roll_number,
@@ -1089,7 +1089,7 @@ const getStudentsByFilters = async (filters) => {
                     FROM users u
                     INNER JOIN student_enrollment se ON u.username = se.username
                     INNER JOIN user_statuses us ON u.username = us.username AND us.campus_id = se.campus_id
-                    INNER JOIN classes c ON se.class_name = c.class_name
+                    INNER JOIN classes c ON se.class_id = c.class_id
                     LEFT JOIN class_sections cs ON se.section_id = cs.section_id
                     LEFT JOIN student_parent_relations spr ON u.username = spr.student_username
                     LEFT JOIN users p ON spr.parent_username = p.username
@@ -1114,7 +1114,7 @@ const getStudentsByFilters = async (filters) => {
                         u.last_name,
                         se.admission_number,
                         se.academic_year_id,
-                        se.class_name,
+                        c.class_name,
                         se.section_id,
                         cs.section_name,
                         se.roll_number,
@@ -1122,7 +1122,7 @@ const getStudentsByFilters = async (filters) => {
                     FROM users u
                     INNER JOIN student_enrollment se ON u.username = se.username
                     INNER JOIN user_statuses us ON u.username = us.username AND us.campus_id = se.campus_id
-                    INNER JOIN classes c ON se.class_name = c.class_name
+                    INNER JOIN classes c ON se.class_id = c.class_id
                     LEFT JOIN class_sections cs ON se.section_id = cs.section_id
                     WHERE u.tenant_id = $1 
                         AND se.campus_id = $2

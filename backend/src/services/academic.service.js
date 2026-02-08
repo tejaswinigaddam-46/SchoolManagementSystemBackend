@@ -1,4 +1,5 @@
 const academicModel = require('../models/academic.model');
+const classModel = require('../models/class.model');
 
 // ==================== CURRICULA SERVICE METHODS ====================
 
@@ -251,6 +252,27 @@ const createAcademicYear = async (academicYearData) => {
         throw new Error('Curriculum ID must be a valid integer');
     }
 
+    // Resolve class IDs from class names
+    try {
+        if (academicYearData.fromclass) {
+            const fromClass = await classModel.getClassByName(academicYearData.fromclass, academicYearData.campus_id);
+            if (!fromClass) {
+                throw new Error(`From Class '${academicYearData.fromclass}' not found`);
+            }
+            academicYearData.from_class_id = fromClass.class_id;
+        }
+
+        if (academicYearData.toclass) {
+            const toClass = await classModel.getClassByName(academicYearData.toclass, academicYearData.campus_id);
+            if (!toClass) {
+                throw new Error(`To Class '${academicYearData.toclass}' not found`);
+            }
+            academicYearData.to_class_id = toClass.class_id;
+        }
+    } catch (error) {
+        throw error;
+    }
+
     try {
         const newAcademicYear = await academicModel.createAcademicYear(academicYearData);
         if (!newAcademicYear) {
@@ -337,6 +359,27 @@ const updateAcademicYear = async (academicYearId, academicYearData, campusId) =>
     // Validate curriculum_id is a number if provided
     if (academicYearData.curriculum_id !== undefined && !Number.isInteger(parseInt(academicYearData.curriculum_id))) {
         throw new Error('Curriculum ID must be a valid integer');
+    }
+
+    // Resolve class IDs from class names if provided
+    try {
+        if (academicYearData.fromclass) {
+            const fromClass = await classModel.getClassByName(academicYearData.fromclass, campusId);
+            if (!fromClass) {
+                throw new Error(`From Class '${academicYearData.fromclass}' not found`);
+            }
+            academicYearData.from_class_id = fromClass.class_id;
+        }
+
+        if (academicYearData.toclass) {
+            const toClass = await classModel.getClassByName(academicYearData.toclass, campusId);
+            if (!toClass) {
+                throw new Error(`To Class '${academicYearData.toclass}' not found`);
+            }
+            academicYearData.to_class_id = toClass.class_id;
+        }
+    } catch (error) {
+        throw error;
     }
 
     try {

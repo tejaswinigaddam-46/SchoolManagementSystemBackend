@@ -176,9 +176,12 @@ const getAllAcademicYears = async (campusId) => {
     }
 
     const query = `
-        SELECT ay.*, c.curriculum_name, c.curriculum_code 
+        SELECT ay.*, c.curriculum_name, c.curriculum_code,
+               fc.class_name as fromclass, tc.class_name as toclass
         FROM academic_years ay
         LEFT JOIN curricula c ON ay.curriculum_id = c.curriculum_id
+        LEFT JOIN classes fc ON ay.from_class_id = fc.class_id
+        LEFT JOIN classes tc ON ay.to_class_id = tc.class_id
         WHERE ay.campus_id = $1
         ORDER BY ay.year_name DESC, ay.medium ASC;
     `;
@@ -202,7 +205,7 @@ const createAcademicYear = async (academicYearData) => {
 
     const query = `
         INSERT INTO academic_years 
-        (campus_id, year_name, year_type, medium, start_date, end_date, fromclass, toclass, 
+        (campus_id, year_name, year_type, medium, start_date, end_date, from_class_id, to_class_id, 
          start_time_of_day, end_time_of_day, shift_type, curriculum_id)
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
         RETURNING *;
@@ -214,8 +217,8 @@ const createAcademicYear = async (academicYearData) => {
         academicYearData.medium,
         academicYearData.start_date,
         academicYearData.end_date,
-        academicYearData.fromclass,
-        academicYearData.toclass,
+        academicYearData.from_class_id,
+        academicYearData.to_class_id,
         academicYearData.start_time_of_day,
         academicYearData.end_time_of_day,
         academicYearData.shift_type,
@@ -255,8 +258,8 @@ const updateAcademicYear = async (academicYearId, academicYearData, campusId) =>
         medium: 'medium',
         start_date: 'start_date',
         end_date: 'end_date',
-        fromclass: 'fromclass',
-        toclass: 'toclass',
+        from_class_id: 'from_class_id',
+        to_class_id: 'to_class_id',
         start_time_of_day: 'start_time_of_day',
         end_time_of_day: 'end_time_of_day',
         shift_type: 'shift_type',
@@ -338,9 +341,12 @@ const getAcademicYearById = async (academicYearId, campusId) => {
     }
 
     const query = `
-        SELECT ay.*, c.curriculum_name, c.curriculum_code 
+        SELECT ay.*, c.curriculum_name, c.curriculum_code,
+               fc.class_name as fromclass, tc.class_name as toclass
         FROM academic_years ay
         LEFT JOIN curricula c ON ay.curriculum_id = c.curriculum_id
+        LEFT JOIN classes fc ON ay.from_class_id = fc.class_id
+        LEFT JOIN classes tc ON ay.to_class_id = tc.class_id
         WHERE ay.academic_year_id = $1 AND ay.campus_id = $2;
     `;
     

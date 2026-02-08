@@ -21,6 +21,31 @@ const UserModel = {
         }
     },
 
+    async findTenantsAndUsersByMobile(mobileNumber, client = pool) {
+        try {
+            const query = `
+                SELECT 
+                    t.tenant_id,
+                    t.tenant_name,
+                    t.subdomain,
+                    u.username,
+                    u.first_name,
+                    u.last_name,
+                    u.role,
+                    u.user_id
+                FROM users u
+                JOIN tenants t ON u.tenant_id = t.tenant_id
+                WHERE u.phone_number = $1
+                ORDER BY t.tenant_name, u.username
+            `;
+            const result = await client.query(query, [mobileNumber]);
+            return result.rows;
+        } catch (error) {
+            console.error('Error finding tenants and users by mobile:', error);
+            throw new Error('Failed to resolve tenants by mobile number.');
+        }
+    },
+
     async create(user, tenant_id,client = pool) {
         try {
             const query = `
@@ -558,7 +583,7 @@ const UserModel = {
                 FROM users u
                 INNER JOIN user_statuses us ON u.username = us.username
                 INNER JOIN student_enrollment se ON u.username = se.username
-                INNER JOIN classes c ON se.class_name = c.class_name
+                INNER JOIN classes c ON se.class_id = c.class_id
                 INNER JOIN curricula cu ON c.campus_id = cu.campus_id 
             `;
             

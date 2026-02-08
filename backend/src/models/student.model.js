@@ -52,6 +52,51 @@ const resolveAcademicYearId = async (academicYearInput, campusId) => {
 };
 
 /**
+ * Helper function to get class ID from class name or validate existing ID
+ * @param {string|number} classInput - Either class ID or class name
+ * @param {string} campusId - Campus ID
+ * @returns {Promise<number|null>} Class ID or null
+ */
+const resolveClassId = async (classInput, campusId) => {
+    if (!classInput) {
+        return null;
+    }
+
+    // If it's already a number, assume it's an ID and validate it
+    if (typeof classInput === 'number' || /^\d+$/.test(classInput.toString())) {
+        const classId = parseInt(classInput);
+        try {
+            const query = 'SELECT class_id FROM classes WHERE class_id = $1 AND campus_id = $2';
+            const result = await pool.query(query, [classId, campusId]);
+            return result.rows.length > 0 ? classId : null;
+        } catch (error) {
+            logger.error('Error validating class ID', { classId, campusId, error: error.message });
+            return null;
+        }
+    }
+
+    // If it's a string, try to find the ID by name
+    const className = classInput.toString().trim();
+    if (className) {
+        try {
+            const query = `
+                SELECT class_id 
+                FROM classes 
+                WHERE campus_id = $1 AND LOWER(class_name) = LOWER($2) 
+                LIMIT 1
+            `;
+            const result = await pool.query(query, [campusId, className]);
+            return result.rows.length > 0 ? result.rows[0].class_id : null;
+        } catch (error) {
+            logger.error('Error resolving class by name', { className, campusId, error: error.message });
+            return null;
+        }
+    }
+
+    return null;
+};
+
+/**
  * Get main campus for a tenant
  * @param {string} tenantId - Tenant ID
  * @returns {Promise<string|null>} Campus ID or null
@@ -201,7 +246,7 @@ const createStudentWithClient = async (client, studentData, tenantId, campusId) 
         INSERT INTO student_enrollment (
             admission_number, admission_date, campus_id, username, academic_year_id, 
             registration_number, admission_type, tc_number, scholarship_applied,
-            previous_school, transport_details, hostel_details, class_name
+            previous_school, transport_details, hostel_details, class_id
         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
         RETURNING *
     `;
@@ -220,6 +265,23 @@ const createStudentWithClient = async (client, studentData, tenantId, campusId) 
             throw new Error(`Invalid academic year: ${academicYearId}. Please select a valid academic year.`);
         }
         academicYearId = resolvedAcademicYearId;
+    }
+
+    // Handle class_id - resolve it properly
+    let classId = studentData.class_id || studentData.class;
+    if (classId) {
+        const resolvedClassId = await resolveClassId(classId, campusId);
+        if (!resolvedClassId) {
+            logger.error('MODEL: Could not resolve class ID', {
+                originalInput: classId,
+                campusId
+            });
+            throw new Error(`Invalid class: ${classId}. Please select a valid class.`);
+        }
+        classId = resolvedClassId;
+    } else {
+        logger.error('MODEL: Class is required');
+        throw new Error('Class is required');
     }
     
     // Fix transport and hostel field mapping
@@ -240,7 +302,7 @@ const createStudentWithClient = async (client, studentData, tenantId, campusId) 
         studentData.previousSchool?.trim() || null,
         transportDetails,
         hostelDetails,
-        studentData.class?.trim() || null
+        classId // Use resolved classId
     ];
     
     logger.info('MODEL: Enrollment query parameters', {
@@ -257,7 +319,7 @@ const createStudentWithClient = async (client, studentData, tenantId, campusId) 
         previous_school: enrollmentParams[9],
         transport_details: enrollmentParams[10],
         hostel_details: enrollmentParams[11],
-        class_name: enrollmentParams[12]
+        class_id: enrollmentParams[12]
     });
     
     let enrollmentResult;
@@ -560,7 +622,7 @@ const findStudentByAdmissionNumber = async (admissionNumber, tenantId) => {
             u.user_id, u.username, u.first_name, u.middle_name, u.last_name, 
             u.phone_number, u.date_of_birth, u.role, u.tenant_id,
             se.admission_number, se.admission_date, se.academic_year_id, 
-            se.registration_number, se.admission_type, se.tc_number, se.scholarship_applied,
+            se.registration_number, se.admission_type, se.tc_number, se.scholarship_applied, cls.class_name, se.section_id, se.roll_number,
             upd.gender, upd.nationality, upd.religion, upd.caste, upd.category,
             upd.blood_group, upd.height_cm, upd.weight_kg, upd.medical_conditions,
             upd.allergies,
@@ -568,6 +630,7 @@ const findStudentByAdmissionNumber = async (admissionNumber, tenantId) => {
             ucd.city, ucd.state, ucd.pincode, ucd.country, ucd.permanent_address
         FROM users u
         JOIN student_enrollment se ON se.username = u.username
+        LEFT JOIN classes cls ON se.class_id = cls.class_id
         LEFT JOIN user_personal_details upd ON u.username = upd.username
         LEFT JOIN user_contact_details ucd ON u.username = ucd.username
         WHERE se.admission_number = $1 AND u.tenant_id = $2 AND u.role = 'Student'
@@ -594,7 +657,7 @@ const findStudentByUsername = async (username, tenantId) => {
             u.user_id, u.username, u.first_name, u.middle_name, u.last_name, 
             u.phone_number, u.date_of_birth, u.role, u.tenant_id, u.created_at, u.updated_at,
             se.admission_number, se.admission_date, se.academic_year_id, 
-            se.registration_number, se.admission_type, se.tc_number, se.scholarship_applied, se.section_id, se.class_name, se.roll_number,
+            se.registration_number, se.admission_type, se.tc_number, se.scholarship_applied, se.section_id, cls.class_name, se.roll_number,
             upd.gender, upd.nationality, upd.religion, upd.caste, upd.category,
             upd.blood_group, upd.height_cm, upd.weight_kg, upd.medical_conditions,
             upd.allergies,
@@ -603,6 +666,7 @@ const findStudentByUsername = async (username, tenantId) => {
             us.campus_id, us.status
         FROM users u
         LEFT JOIN student_enrollment se ON se.username = u.username
+        LEFT JOIN classes cls ON se.class_id = cls.class_id
         LEFT JOIN user_personal_details upd ON u.username = upd.username
         LEFT JOIN user_contact_details ucd ON u.username = ucd.username
         LEFT JOIN user_statuses us ON u.username = us.username
@@ -631,7 +695,7 @@ const getCompleteStudentData = async (username, tenantId) => {
             u.phone_number, u.date_of_birth, u.role, u.tenant_id, u.created_at, u.updated_at,
             se.admission_number, se.admission_date, se.academic_year_id, 
             se.registration_number, se.admission_type, se.tc_number, se.scholarship_applied,
-            se.previous_school, se.transport_details, se.hostel_details, se.class_name, se.section_id, se.roll_number,
+            se.previous_school, se.transport_details, se.hostel_details, cls.class_name, se.section_id, se.roll_number,
             upd.gender, upd.nationality, upd.religion, upd.caste, upd.category,
             upd.blood_group, upd.height_cm, upd.weight_kg, upd.medical_conditions,
             upd.allergies,
@@ -643,6 +707,7 @@ const getCompleteStudentData = async (username, tenantId) => {
             cs.section_name
         FROM users u
         LEFT JOIN student_enrollment se ON se.username = u.username
+        LEFT JOIN classes cls ON se.class_id = cls.class_id
         LEFT JOIN user_personal_details upd ON u.username = upd.username
         LEFT JOIN user_contact_details ucd ON u.username = ucd.username
         LEFT JOIN user_statuses us ON u.username = us.username
@@ -724,14 +789,11 @@ const getAllStudents = async (tenantId, options = {}) => {
     // Add class filter
     if (class_id) {
         if (/^\d+$/.test(class_id.toString().trim())) {
-             const clsRes = await pool.query('SELECT class_name FROM classes WHERE class_id = $1', [class_id]);
-             if (clsRes.rows.length > 0) {
-                 whereClause += ` AND se.class_name = $${paramCounter}`;
-                 queryParams.push(clsRes.rows[0].class_name);
-                 paramCounter++;
-             }
+             whereClause += ` AND se.class_id = $${paramCounter}`;
+             queryParams.push(class_id);
+             paramCounter++;
         } else {
-             whereClause += ` AND se.class_name = $${paramCounter}`;
+             whereClause += ` AND cls.class_name = $${paramCounter}`;
              queryParams.push(class_id);
              paramCounter++;
         }
@@ -790,7 +852,7 @@ const getAllStudents = async (tenantId, options = {}) => {
             u.phone_number, u.date_of_birth, u.created_at,
             se.admission_number, se.admission_date, se.academic_year_id, 
             se.registration_number, se.admission_type,
-            se.class_name,
+            cls.class_name,
             upd.gender, upd.blood_group, upd.nationality,
             ucd.email, ucd.phone as contact_phone, ucd.city, ucd.state,
             us.campus_id, us.status,
@@ -799,6 +861,7 @@ const getAllStudents = async (tenantId, options = {}) => {
         FROM users u
         LEFT JOIN user_statuses us ON u.username = us.username
         LEFT JOIN student_enrollment se ON se.username = u.username AND u.role = 'Student'
+        LEFT JOIN classes cls ON se.class_id = cls.class_id
         LEFT JOIN user_personal_details upd ON u.username = upd.username
         LEFT JOIN user_contact_details ucd ON u.username = ucd.username
         LEFT JOIN academic_years ay ON se.academic_year_id = ay.academic_year_id
@@ -813,6 +876,7 @@ const getAllStudents = async (tenantId, options = {}) => {
         FROM users u
         LEFT JOIN user_statuses us ON u.username = us.username
         LEFT JOIN student_enrollment se ON se.username = u.username AND u.role = 'Student'
+        LEFT JOIN classes cls ON se.class_id = cls.class_id
         LEFT JOIN academic_years ay ON se.academic_year_id = ay.academic_year_id
         LEFT JOIN curricula c ON ay.curriculum_id = c.curriculum_id
         ${whereClause}
@@ -944,7 +1008,12 @@ const updateStudent = async (username, updateData, tenantId) => {
         
         // Handle class updates
         if (updateData.class !== undefined) {
-            enrollmentUpdates.class_name = updateData.class;
+            const resolvedClassId = await resolveClassId(updateData.class, campusId);
+            if (resolvedClassId) {
+                enrollmentUpdates.class_id = resolvedClassId;
+            } else {
+                logger.warn('MODEL: Could not resolve class ID from class name', { className: updateData.class });
+            }
         }
         
         // Handle transport and hostel details
@@ -1722,9 +1791,7 @@ const getStudentsBySection = async (tenantId, campusId, academicYearId, classId,
         // Add class filter (optional but good for validation)
         if (classId) {
              // If classId is provided, we can filter by class_id directly if available in student_enrollment
-             // Or join with classes table. The current schema shows student_enrollment has class_name but not class_id directly linked easily without join
-             // However, based on schema reading: student_enrollment has class_name referencing classes(class_name)
-             // AND section_id referencing class_sections(section_id)
+             // Or join with classes table.
              
              // Let's assume classId passed is the ID, we might need to resolve it to name if we filter by name, 
              // but filtering by section_id should implicitly filter by class as sections belong to classes.
@@ -1743,12 +1810,13 @@ const getStudentsBySection = async (tenantId, campusId, academicYearId, classId,
                 u.last_name,
                 se.admission_number,
                 se.roll_number,
-                se.class_name,
+                c.class_name,
                 se.section_id,
                 us.status
             FROM users u
             JOIN user_statuses us ON u.username = us.username
             JOIN student_enrollment se ON u.username = se.username
+            LEFT JOIN classes c ON se.class_id = c.class_id
             ${whereClause}
             ORDER BY 
                 se.roll_number ASC,

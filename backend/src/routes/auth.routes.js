@@ -22,6 +22,12 @@ router.post('/login', identifyTenant, loginController.login);
 router.post('/refresh', loginController.refreshToken);
 
 /**
+ * POST /api/auth/resolve-tenant
+ * Resolve tenant by mobile number
+ */
+router.post('/resolve-tenant', loginController.resolveTenant);
+
+/**
  * GET /api/auth/profile
  * Get current user profile
  */

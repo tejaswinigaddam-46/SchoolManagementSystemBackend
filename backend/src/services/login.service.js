@@ -486,10 +486,45 @@ const changeUserPassword = async (username, passwordData, tenantId) => {
         throw error;
     }
 };
+/**
+ * Resolve tenants and users by mobile number
+ * @param {string} mobileNumber - User's mobile number
+ * @returns {Promise<Array>} List of tenants and users
+ */
+const resolveTenantsByMobile = async (mobileNumber) => {
+    logger.info('resolveTenantsByMobile method called', {
+        method: 'resolveTenantsByMobile',
+        parameters: { mobileNumber }
+    });
+    
+    if (!mobileNumber) {
+        throw new Error('Mobile number is required');
+    }
+    
+    try {
+        const results = await userModel.findTenantsAndUsersByMobile(mobileNumber);
+        
+        logger.info('resolveTenantsByMobile method completed successfully', {
+            method: 'resolveTenantsByMobile',
+            response: { count: results.length }
+        });
+        
+        return results;
+    } catch (error) {
+        logger.error('Error in resolveTenantsByMobile method', {
+            method: 'resolveTenantsByMobile',
+            error: error.message,
+            parameters: { mobileNumber }
+        });
+        throw error;
+    }
+};
 
 module.exports = {
     authenticateUser,
     refreshAccessToken,
     verifyToken,
     changeUserPassword,
+    resolveTenantsByMobile,
 };
+

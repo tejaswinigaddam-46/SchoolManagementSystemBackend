@@ -454,7 +454,9 @@ const importStudents = async (filePath, tenantId, campusId) => {
                     throw new Error(`Class '${classInputRaw}' not found in campus. Please create the class or use the exact class name as in system.`);
                 }
                 
-                // Set canonical class_name from DB to satisfy FK
+                // Set canonical class_id from DB to satisfy FK
+                item.data.class_id = classRes.rows[0].class_id;
+                // Keep class name for any other logging or legacy uses if needed, but class_id takes precedence in model
                 item.data.class = classRes.rows[0].class_name;
             }
 

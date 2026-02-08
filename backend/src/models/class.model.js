@@ -350,10 +350,33 @@ const getClassStatistics = async (campusId, tenantId) => {
         throw error;
     }
 };
+/**
+ * Get class by name and campus
+ * @param {string} className - Class Name
+ * @param {string} campusId - Campus ID
+ * @returns {Promise<Object|null>} Class object or null
+ */
+const getClassByName = async (className, campusId) => {
+    const query = `
+        SELECT class_id, class_name, class_level, campus_id
+        FROM classes 
+        WHERE campus_id = $1 AND LOWER(class_name) = LOWER($2)
+        LIMIT 1
+    `;
+    
+    try {
+        const result = await pool.query(query, [campusId, className.trim()]);
+        return result.rows.length > 0 ? result.rows[0] : null;
+    } catch (error) {
+        logger.error('Error getting class by name:', error);
+        throw error;
+    }
+};
 
 module.exports = {
     createClass,
     getAllClasses,
+    getClassByName,
     findClassById,
     findClassesByCampus,
     updateClass,

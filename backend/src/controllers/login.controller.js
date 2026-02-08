@@ -258,11 +258,44 @@ const verifyToken = async (req, res) => {
         });
     }
 };
+/**
+ * Resolve tenant by mobile number
+ * POST /api/auth/resolve-tenant
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
+const resolveTenant = async (req, res) => {
+    try {
+        const { mobileNumber } = req.body;
+        
+        if (!mobileNumber) {
+            return res.status(400).json({
+                success: false,
+                message: 'Mobile number is required'
+            });
+        }
+        
+        const tenants = await loginservice.resolveTenantsByMobile(mobileNumber);
+        
+        res.status(200).json({
+            success: true,
+            data: tenants
+        });
+    } catch (error) {
+        console.error('Error in resolveTenant controller:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Internal server error resolving tenant: ' + error.message
+        });
+    }
+};
 
 module.exports = {
     login,
     refreshToken,
     logout,
     changePassword,
-    verifyToken
+    verifyToken,
+    resolveTenant
 };
+
