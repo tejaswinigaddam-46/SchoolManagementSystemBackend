@@ -227,6 +227,16 @@ const createAcademicYear = async (academicYearData) => {
     
     try {
         const result = await pool.query(query, values);
+
+        await pool.query(
+            `
+            INSERT INTO academic_year_names (year_name)
+            VALUES ($1)
+            ON CONFLICT (year_name) DO NOTHING
+            `,
+            [academicYearData.year_name]
+        );
+
         return result.rows[0];
     } catch (error) {
         console.error('Error creating academic year in model:', error, values);

@@ -4,19 +4,14 @@ const logger = require('../utils/logger');
 
 /**
  * Bulk assign subjects to sections
+ * Access: Requires section-subject assign permission
  */
 const bulkAssign = async (req, res) => {
   try {
-    const { role } = req.user;
     const { assignments } = req.body;
 
     if (!assignments || !Array.isArray(assignments) || assignments.length === 0) {
       return errorResponse(res, 'Assignments array is required', 400);
-    }
-
-    // Only admins/zonal/superadmin can assign
-    if (!['Admin', 'Superadmin', 'Zonaladmin'].includes(role)) {
-      return errorResponse(res, 'Only admins can assign subjects to sections', 403);
     }
 
     const result = await SectionSubjectService.bulkAssign(assignments);
@@ -48,15 +43,11 @@ module.exports = { bulkAssign, listBySections };
 
 /**
  * Unassign subjects from a section
+ * Access: Requires section-subject unassign permission
  */
 const unassign = async (req, res) => {
   try {
-    const { role } = req.user;
     const { section_id, subject_ids } = req.body;
-
-    if (!['Admin', 'Superadmin', 'Zonaladmin'].includes(role)) {
-      return errorResponse(res, 'Only admins can unassign subjects from sections', 403);
-    }
 
     if (!section_id || !Array.isArray(subject_ids)) {
       return errorResponse(res, 'section_id and subject_ids array are required', 400);

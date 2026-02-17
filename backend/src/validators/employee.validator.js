@@ -65,8 +65,8 @@ const createEmployeeValidation = [
     body('user.role')
         .notEmpty()
         .withMessage('Role is required')
-        .isIn(['Employee', 'Manager', 'Admin'])
-        .withMessage('Role must be Employee, Manager, or Admin'),
+        .isIn(['Employee', 'Admin'])
+        .withMessage('Role must be Employee or Admin'),
 
     // Contact Details Section
     body('contact.email')
@@ -366,8 +366,8 @@ const updateEmployeeValidation = [
 
     body('user.role')
         .optional({ nullable: true, checkFalsy: true })
-        .isIn(['Employee', 'Manager', 'Admin'])
-        .withMessage('Role must be Employee, Manager, or Admin'),
+        .isIn(['Employee', 'Admin'])
+        .withMessage('Role must be Employee or Admin'),
 
     // Contact Details Section
     body('contact.email')

@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
-const { authenticate } = require('../middleware/auth');
+const { authenticate, requirePermission } = require('../middleware/auth');
+const { PERMISSIONS } = require('../config/permissions');
 const {
   createEventController,
   updateEventController,
@@ -12,9 +13,25 @@ const {
 router.use(authenticate);
 
 // Routes
-router.post('/', createEventController);
-router.get('/', getEventsController);
-router.put('/:id', updateEventController);
-router.delete('/:id', deleteEventController);
+router.post(
+  '/',
+  requirePermission(PERMISSIONS.EVENT_CREATE),
+  createEventController
+);
+router.get(
+  '/',
+  requirePermission(PERMISSIONS.EVENT_LIST_READ),
+  getEventsController
+);
+router.put(
+  '/:id',
+  requirePermission(PERMISSIONS.EVENT_EDIT),
+  updateEventController
+);
+router.delete(
+  '/:id',
+  requirePermission(PERMISSIONS.EVENT_DELETE),
+  deleteEventController
+);
 
 module.exports = router;

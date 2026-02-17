@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
-const { authenticate } = require('../middleware/auth');
+const { authenticate, requirePermission } = require('../middleware/auth');
+const { PERMISSIONS } = require('../config/permissions');
 const {
   createExamController,
   updateExamController,
@@ -13,10 +14,30 @@ const {
 router.use(authenticate);
 
 // Routes
-router.post('/', createExamController);
-router.get('/', getExamsController);
-router.get('/:id', getExamByIdController);
-router.put('/:id', updateExamController);
-router.delete('/:id', deleteExamController);
+router.post(
+  '/',
+  requirePermission(PERMISSIONS.EXAM_CREATE),
+  createExamController
+);
+router.get(
+  '/',
+  requirePermission(PERMISSIONS.EXAM_LIST_READ),
+  getExamsController
+);
+router.get(
+  '/:id',
+  requirePermission(PERMISSIONS.EXAM_ITEM_READ),
+  getExamByIdController
+);
+router.put(
+  '/:id',
+  requirePermission(PERMISSIONS.EXAM_EDIT),
+  updateExamController
+);
+router.delete(
+  '/:id',
+  requirePermission(PERMISSIONS.EXAM_DELETE),
+  deleteExamController
+);
 
 module.exports = router;

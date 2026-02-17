@@ -4,7 +4,18 @@ const jwt = require('jsonwebtoken');
 const config = require('../config');
 const tenantService  = require('../services/tenant.service');
 const campusService  = require('../services/campus.service');
+const PermissionService = require('../services/permission.service');
 const logger = require('../utils/logger');
+
+const buildPermissionCodes = (rolePermissions) => {
+    if (!Array.isArray(rolePermissions)) {
+        return [];
+    }
+
+    const rolePermissionCodes = rolePermissions.map(p => p.permission_code);
+
+    return Array.from(new Set(rolePermissionCodes));
+};
 
 // ==================== USER SERVICE METHODS ====================
 
@@ -77,6 +88,11 @@ const authenticateUser = async (loginData, tenantId) => {
     const campusId = await userModel.getUserCampusId(user.username, tenantId);
     const campusDetails = await campusService.getCampusById(campusId, tenantId);
 
+    const rolePermissions = await PermissionService.getRolePermissionsForCampus(campusId, {
+        role_name: role
+    });
+    const permissionCodes = buildPermissionCodes(rolePermissions);
+
     const tokenPayload = {
         user: {
             user_id: user.user_id,
@@ -97,7 +113,8 @@ const authenticateUser = async (loginData, tenantId) => {
             campus_id: campusDetails.campus_id,
             campus_name: campusDetails.campus_name,
             is_main_campus: campusDetails.is_main_campus
-        } 
+        },
+        permissions: permissionCodes
     };
     
     const accessToken = jwt.sign(
@@ -144,7 +161,8 @@ const authenticateUser = async (loginData, tenantId) => {
                 campus_id: campusDetails.campus_id,
                 campus_name: campusDetails.campus_name,
                 is_main_campus: campusDetails.is_main_campus
-            } ,
+            },
+            permissions: permissionCodes,
             tokens: {
                 access_token: accessToken,
                 refresh_token: refreshToken,
@@ -175,7 +193,8 @@ const authenticateUser = async (loginData, tenantId) => {
                     campus_id: result.campus.campus_id,
                     campus_name: result.campus.campus_name,
                     is_main_campus: result.campus.is_main_campus
-                } ,
+                },
+                permissions: Array.isArray(result.permissions) ? result.permissions.length : 0,
                 hasTokens: !!result.tokens.access_token
             }
         });
@@ -238,7 +257,6 @@ const refreshAccessToken = async (refreshToken) => {
             throw new Error('User is no longer a member of this tenant');
         }
         
-        // Get updated roles
         const role = await userModel.getUserRoleForTenant(decoded.username, decoded.tenantId);
 
         const tenantDetails = await tenantService.getTenantById(decoded.tenantId);
@@ -249,6 +267,11 @@ const refreshAccessToken = async (refreshToken) => {
 
         const campusId = await userModel.getUserCampusId(user.username, decoded.tenantId);
         const campusDetails = await campusService.getCampusById(campusId, decoded.tenantId);
+
+        const rolePermissions = await PermissionService.getRolePermissionsForCampus(campusId, {
+            role_name: role
+        });
+        const permissionCodes = buildPermissionCodes(rolePermissions);
         
         // Generate new access token
         const tokenPayload = {
@@ -271,7 +294,8 @@ const refreshAccessToken = async (refreshToken) => {
                 campus_id: campusDetails.campus_id,
                 campus_name: campusDetails.campus_name,
                 is_main_campus: campusDetails.is_main_campus
-            } 
+            },
+            permissions: permissionCodes
         };
         
         const accessToken = jwt.sign(
@@ -527,4 +551,3 @@ module.exports = {
     changeUserPassword,
     resolveTenantsByMobile,
 };
-

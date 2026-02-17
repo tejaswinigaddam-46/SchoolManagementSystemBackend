@@ -1,39 +1,42 @@
 const express = require('express');
 const router = express.Router();
 const subjectController = require('../controllers/subject.controller');
-const { authenticate } = require('../middleware/auth');
-const { requireRole } = require('../middleware/auth');
+const { authenticate, requirePermission } = require('../middleware/auth');
+const { PERMISSIONS } = require('../config/permissions');
 
-// ==================== SUBJECT ROUTES ====================
+router.get(
+  '/:campusId',
+  authenticate,
+  requirePermission(PERMISSIONS.SUBJECT_LIST_READ),
+  subjectController.getAllSubjects
+);
 
-/**
- * GET /api/subjects/:campusId
- * Get all subjects for a specific campus
- */
-router.get('/:campusId', authenticate, subjectController.getAllSubjects);
+router.post(
+  '/:campusId',
+  authenticate,
+  requirePermission(PERMISSIONS.SUBJECT_CREATE),
+  subjectController.createSubject
+);
 
-/**
- * POST /api/subjects/:campusId
- * Create a new subject for a specific campus
- */
-router.post('/:campusId', authenticate, requireRole(['Superadmin', 'Admin']), subjectController.createSubject);
+router.get(
+  '/:campusId/:subjectId',
+  authenticate,
+  requirePermission(PERMISSIONS.SUBJECT_ITEM_READ),
+  subjectController.getSubjectById
+);
 
-/**
- * GET /api/subjects/:campusId/:subjectId
- * Get a subject by ID for a specific campus
- */
-router.get('/:campusId/:subjectId', authenticate, subjectController.getSubjectById);
+router.put(
+  '/:campusId/:subjectId',
+  authenticate,
+  requirePermission(PERMISSIONS.SUBJECT_EDIT),
+  subjectController.updateSubject
+);
 
-/**
- * PUT /api/subjects/:campusId/:subjectId
- * Update a subject by ID for a specific campus
- */
-router.put('/:campusId/:subjectId', authenticate, requireRole(['Superadmin', 'Admin']), subjectController.updateSubject);
-
-/**
- * DELETE /api/subjects/:campusId/:subjectId
- * Delete a subject by ID for a specific campus
- */
-router.delete('/:campusId/:subjectId', authenticate, requireRole(['Superadmin', 'Admin']), subjectController.deleteSubject);
+router.delete(
+  '/:campusId/:subjectId',
+  authenticate,
+  requirePermission(PERMISSIONS.SUBJECT_DELETE),
+  subjectController.deleteSubject
+);
 
 module.exports = router;

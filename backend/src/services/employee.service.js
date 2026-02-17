@@ -19,15 +19,6 @@ const createEmployee = async (employeeData, context) => {
         employeeId: employeeData?.employment?.employee_id
     });
 
-    // Check if user has admin privileges
-    if (context.role !== 'Admin') {
-        logger.warn('SERVICE: Unauthorized employee creation attempt', { 
-            userRole: context.role, 
-            tenantId: context.tenant_id 
-        });
-        throw new Error('Only administrators can create employees');
-    }
-
     // Validate required data structure
     if (!employeeData.user || !employeeData.contact || !employeeData.employment) {
         throw new Error('Missing required employee data sections (user, contact, employment)');
@@ -190,11 +181,6 @@ const getEmployeeByEmployeeId = async (employeeId, context) => {
 const getCompleteEmployeeForEdit = async (username, context) => {
     logger.info('SERVICE: Getting complete employee for edit', { username, tenantId: context.tenant_id });
 
-    // Check if user has admin privileges
-    if (context.role !== 'Admin') {
-        throw new Error('Only administrators can access complete employee data for editing');
-    }
-
     try {
         const employee = await employeeModel.getCompleteEmployeeData(username, context.tenant_id);
 
@@ -283,11 +269,8 @@ const getAllEmployees = async (context, options = {}) => {
     });
 
     try {
-        // For non-admin users, filter by their campus
         const queryOptions = { ...options };
-        if (context.role !== 'Admin') {
-            queryOptions.campus_id = context.campus_id;
-        }
+        queryOptions.campus_id = context.campus_id;
 
         const result = await employeeModel.getAllEmployees(context.tenant_id, queryOptions);
 
@@ -320,11 +303,6 @@ const updateEmployeeByUsername = async (username, updateData, context) => {
         userRole: context.role,
         updateSections: Object.keys(updateData)
     });
-
-    // Check if user has admin privileges
-    if (context.role !== 'Admin') {
-        throw new Error('Only administrators can update employees');
-    }
 
     try {
         // Check if employee exists and belongs to the tenant
@@ -376,11 +354,6 @@ const deleteEmployeeByUsername = async (username, context) => {
         tenantId: context.tenant_id,
         userRole: context.role
     });
-
-    // Check if user has admin privileges
-    if (context.role !== 'Admin') {
-        throw new Error('Only administrators can delete employees');
-    }
 
     try {
         // Check if employee exists and belongs to the tenant
@@ -493,8 +466,7 @@ const getEmployeeStatistics = async (context, campusId = null) => {
             throw new Error('Tenant ID is required');
         }
 
-        // For non-admin users, use their campus
-        const targetCampusId = context.role === 'Admin' ? campusId : context.campus_id;
+        const targetCampusId = context.campus_id || campusId || null;
         
         logger.info('SERVICE: Determined target campus ID', {
             user_role: context.role,
@@ -577,7 +549,6 @@ const getFilterOptions = async (context) => {
     });
 
     try {
-        // Get enum values for dropdowns
         const enumValues = await employeeModel.getEnumValues();
         const data = enumValues?.data || enumValues;
         return createResponse(true, 'Filter options retrieved successfully', data);

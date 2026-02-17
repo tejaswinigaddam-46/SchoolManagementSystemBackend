@@ -105,6 +105,18 @@ async function getPayrollReport(campusId, roles, yearName, startDate, endDate, t
     }
 }
 
+async function getMyPayrollReport(campusId, username, role, yearName, startDate, endDate, tenantId) {
+    try {
+        const roles = role ? [role] : [];
+        const allResults = await getPayrollReport(campusId, roles, yearName, startDate, endDate, tenantId);
+        return allResults.filter(u => u.username === username);
+    } catch (error) {
+        logger.error('Service.getMyPayrollReport error', { error: error.message, stack: error.stack });
+        throw error;
+    }
+}
+
 module.exports = {
-    getPayrollReport
+    getPayrollReport,
+    getMyPayrollReport
 };

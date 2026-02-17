@@ -236,14 +236,33 @@ const getInstallmentsByStructure = async (fee_structure_id) => {
 // ==================== DUES GENERATION ====================
 
 // 1. Assign fees for a single enrollment (helper used by enrollment flow and bulk generation)
-const assignFeesForEnrollmentWithClient = async (client, { tenant_id, campus_id, academic_year_id, class_name, username }) => {
-  // Logic to find matching fee structures and create dues
-  // 1. Get student UUID
+const assignFeesForEnrollmentWithClient = async (client, { tenant_id, campus_id, academic_year_id, class_id, class_name, username }) => {
   const student_id = toStudentUUID(username);
-  const class_id = toClassUUID(campus_id, class_name);
 
-  // 2. Get all fee structures for this class
-  const feeStructures = await feeModel.getFeeStructuresForClass(campus_id, academic_year_id, class_id);
+  let class_uuid = null;
+  if (class_name) {
+    class_uuid = toClassUUID(campus_id, class_name);
+  } else if (class_id) {
+    const res = await client.query('SELECT class_name FROM classes WHERE class_id = $1', [class_id]);
+    if (res.rows.length === 0) {
+      logger.warn('FEE: assignFeesForEnrollmentWithClient could not resolve class_name from class_id', {
+        campus_id,
+        academic_year_id,
+        class_id
+      });
+      return { assigned: 0 };
+    }
+    class_uuid = toClassUUID(campus_id, res.rows[0].class_name);
+  } else {
+    logger.warn('FEE: assignFeesForEnrollmentWithClient missing both class_name and class_id', {
+      campus_id,
+      academic_year_id,
+      username
+    });
+    return { assigned: 0 };
+  }
+
+  const feeStructures = await feeModel.getFeeStructuresForClass(campus_id, academic_year_id, class_uuid);
   
   let assignedCount = 0;
 
@@ -275,47 +294,86 @@ const assignFeesForEnrollment = async (data) => {
 };
 
 const generateDuesForClass = async ({ tenant_id, campus_id, academic_year_id, class_id }) => {
+  console.log('FEE_SERVICE generateDuesForClass START', {
+    tenant_id,
+    campus_id,
+    academic_year_id,
+    class_id
+  });
+
   if (!tenant_id || !campus_id || !academic_year_id || !class_id) {
-    throw new Error('Missing required parameters');
+    logger.error('FEE: generateDuesForClass service called with missing params', {
+      tenant_id_present: !!tenant_id,
+      campus_id_present: !!campus_id,
+      academic_year_id_present: !!academic_year_id,
+      class_id_present: !!class_id
+    });
+    throw new Error(`Missing required parameters`);
   }
+
+  logger.info('FEE: generateDuesForClass service START', {
+    tenant_id,
+    campus_id,
+    academic_year_id,
+    class_id
+  });
 
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
 
-    // 1. Get class name (needed for enrollment lookup)
-    const classRes = await client.query('SELECT class_name FROM classes WHERE class_id = $1', [class_id]);
-    if (classRes.rows.length === 0) throw new Error('Class not found');
-    const class_name = classRes.rows[0].class_name;
-
-    // 2. Get all students in this class/year
     const studentsQ = `
       SELECT username 
       FROM student_enrollment 
-      WHERE campus_id = $1 AND academic_year_id = $2 AND class_name = $3
+      WHERE campus_id = $1 AND academic_year_id = $2 AND class_id = $3
     `;
-    const studentsRes = await client.query(studentsQ, [campus_id, academic_year_id, class_name]);
+    const studentsRes = await client.query(studentsQ, [campus_id, academic_year_id, class_id]);
     const students = studentsRes.rows;
+
+    logger.info('FEE: generateDuesForClass service STUDENTS_LOADED', {
+      tenant_id,
+      campus_id,
+      academic_year_id,
+      class_id,
+      studentCount: students.length
+    });
 
     let totalAssigned = 0;
     
-    // 2. Iterate and assign
     for (const student of students) {
-       const res = await assignFeesForEnrollmentWithClient(client, {
-         tenant_id,
-         campus_id,
-         academic_year_id,
-         class_name,
-         username: student.username
-       });
-       if (res.assigned > 0) totalAssigned++;
+      const res = await assignFeesForEnrollmentWithClient(client, {
+        tenant_id,
+        campus_id,
+        academic_year_id,
+        class_id,
+        username: student.username
+      });
+
+      logger.debug('FEE: generateDuesForClass service per-student result', {
+        username: student.username,
+        assigned: res.assigned
+      });
+
+      if (res.assigned > 0) totalAssigned++;
     }
 
     await client.query('COMMIT');
-    return { totalStudents: students.length, totalAssigned };
+
+    const summary = { totalStudents: students.length, totalAssigned };
+
+    logger.info('FEE: generateDuesForClass service SUCCESS', summary);
+    console.log('FEE_SERVICE generateDuesForClass SUMMARY', summary);
+    return summary;
   } catch (err) {
     await client.query('ROLLBACK');
-    logger.error('Error generating dues for class:', err);
+    logger.error('Error generating dues for class:', {
+      message: err.message,
+      stack: err.stack,
+      tenant_id,
+      campus_id,
+      academic_year_id,
+      class_id
+    });
     throw err;
   } finally {
     client.release();

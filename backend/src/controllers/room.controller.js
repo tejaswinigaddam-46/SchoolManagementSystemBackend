@@ -131,17 +131,13 @@ class RoomController {
   }
 
   /**
-   * Create new room (Admin only)
+   * Create new room
+   * Access: Requires room create permission
    * POST /api/rooms
    */
   static async createRoom(req, res) {
     try {
-      const { tenantId, campusId, roles, tenant, campus } = req.user;
-
-      // Role check is handled by middleware, but double-check for security
-      if (!roles.includes('Admin')) {
-        return errorResponse(res, 'Access denied. Admin privileges required.', 403);
-      }
+      const { tenantId, campusId, tenant, campus } = req.user;
 
       if (!campusId) {
         return errorResponse(res, 'Campus context is required', 400);
@@ -178,18 +174,14 @@ class RoomController {
   }
 
   /**
-   * Update room (Admin only)
+   * Update room
+   * Access: Requires room edit permission
    * PUT /api/rooms/:id
    */
   static async updateRoom(req, res) {
     try {
       const { id } = req.params;
-      const { tenantId, campusId, roles } = req.user;
-
-      // Role check is handled by middleware, but double-check for security
-      if (!roles.includes('Admin')) {
-        return errorResponse(res, 'Access denied. Admin privileges required.', 403);
-      }
+      const { tenantId, campusId } = req.user;
 
       if (!campusId) {
         return errorResponse(res, 'Campus context is required', 400);
@@ -224,18 +216,14 @@ class RoomController {
   }
 
   /**
-   * Delete room (Admin only)
+   * Delete room
+   * Access: Requires room delete permission
    * DELETE /api/rooms/:id
    */
   static async deleteRoom(req, res) {
     try {
       const { id } = req.params;
-      const { tenantId, campusId, roles } = req.user;
-
-      // Role check is handled by middleware, but double-check for security
-      if (!roles.includes('Admin')) {
-        return errorResponse(res, 'Access denied. Admin privileges required.', 403);
-      }
+      const { tenantId, campusId } = req.user;
 
       if (!campusId) {
         return errorResponse(res, 'Campus context is required', 400);

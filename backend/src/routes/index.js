@@ -9,6 +9,7 @@ const userRoutes = require('./user.routes');
 const employeeRoutes = require('./employee.routes');
 const academicRoutes = require('./academic.routes');
 const subjectRoutes = require('./subject.routes');
+const permissionRoutes = require('./permission.routes');
 const eventRoutes = require('./event.routes');
 const attendanceRoutes = require('./attendance.routes');
 const leaveRoutes = require('./leave.routes');
@@ -46,6 +47,7 @@ router.get('/', (req, res) => {
       sections: '/api/sections',
       academics: '/api/academics',
       subjects: '/api/subjects',
+      permissions: '/api/permissions',
       events: '/api/events',
       payroll: '/api/payroll',
       fees: '/api/fees',
@@ -68,6 +70,7 @@ router.use('/classes', classRoutes);
 router.use('/sections', sectionRoutes);
 router.use('/academics', academicRoutes);
 router.use('/subjects', subjectRoutes);
+router.use('/permissions', permissionRoutes);
 router.use('/section-subjects', sectionSubjectRoutes);
 router.use('/events', eventRoutes);
 router.use('/attendance', attendanceRoutes);

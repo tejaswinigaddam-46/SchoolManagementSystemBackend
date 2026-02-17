@@ -75,13 +75,6 @@ const exportEmployees = async (usernames, context) => {
             const emp = await employeeModel.getCompleteEmployeeData(username, context.tenant_id);
             
             if (emp) {
-                // Check permissions (e.g. if admin or same campus) - assuming caller handles high-level auth
-                // But we should double check if the employee belongs to the campus if the user is not admin
-                if (context.role !== 'Admin' && emp.campus_id !== context.campus_id) {
-                    logger.warn(`Skipping export for employee ${username} due to campus mismatch`);
-                    continue;
-                }
-
                 worksheet.addRow({
                     username: emp.username,
                     firstName: emp.first_name,

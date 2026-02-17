@@ -1,8 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const RoomController = require('../controllers/room.controller');
-const { authenticate, requireRole } = require('../middleware/auth');
-const { validateTenant } = require('../middleware/tenant');
+const { authenticate, requirePermission } = require('../middleware/auth');
+const { PERMISSIONS } = require('../config/permissions');
 const {
   validateRoomCreation,
   validateRoomUpdate,
@@ -10,59 +10,65 @@ const {
   validateBuildingId
 } = require('../validators/room.validator');
 
-// ==================== ROOM ROUTES ====================
+router.get(
+  '/types',
+  authenticate,
+  requirePermission(PERMISSIONS.ROOM_TYPES_READ),
+  RoomController.getRoomTypes
+);
 
-/**
- * GET /api/rooms/types
- * Get available room types from enum
- * Accessible to all authenticated users
- */
-router.get('/types', authenticate, RoomController.getRoomTypes);
+router.get(
+  '/stats',
+  authenticate,
+  requirePermission(PERMISSIONS.ROOM_STATS_READ),
+  RoomController.getRoomStats
+);
 
-/**
- * GET /api/rooms/stats
- * Get room statistics for current campus
- * Accessible to all authenticated users
- */
-router.get('/stats', authenticate, RoomController.getRoomStats);
+router.get(
+  '/building/:buildingId',
+  authenticate,
+  requirePermission(PERMISSIONS.ROOM_BY_BUILDING_READ),
+  validateBuildingId,
+  RoomController.getRoomsByBuilding
+);
 
-/**
- * GET /api/rooms/building/:buildingId
- * Get rooms by building ID
- * Accessible to all authenticated users
- */
-router.get('/building/:buildingId', authenticate, validateBuildingId, RoomController.getRoomsByBuilding);
+router.get(
+  '/',
+  authenticate,
+  requirePermission(PERMISSIONS.ROOM_LIST_READ),
+  RoomController.getAllRooms
+);
 
-/**
- * GET /api/rooms
- * Get all rooms for current campus
- * Accessible to all authenticated users
- */
-router.get('/', authenticate, RoomController.getAllRooms);
+router.post(
+  '/',
+  authenticate,
+  requirePermission(PERMISSIONS.ROOM_CREATE),
+  validateRoomCreation,
+  RoomController.createRoom
+);
 
-/**
- * POST /api/rooms
- * Create new room (Admin only)
- */
-router.post('/', authenticate, requireRole(['Admin']), validateRoomCreation, RoomController.createRoom);
+router.get(
+  '/:id',
+  authenticate,
+  requirePermission(PERMISSIONS.ROOM_ITEM_READ),
+  validateRoomId,
+  RoomController.getRoomById
+);
 
-/**
- * GET /api/rooms/:id
- * Get room by ID
- * Accessible to all authenticated users
- */
-router.get('/:id', authenticate, validateRoomId, RoomController.getRoomById);
+router.put(
+  '/:id',
+  authenticate,
+  requirePermission(PERMISSIONS.ROOM_EDIT),
+  validateRoomUpdate,
+  RoomController.updateRoom
+);
 
-/**
- * PUT /api/rooms/:id
- * Update room (Admin only)
- */
-router.put('/:id', authenticate, requireRole(['Admin']), validateRoomUpdate, RoomController.updateRoom);
-
-/**
- * DELETE /api/rooms/:id
- * Delete room (Admin only)
- */
-router.delete('/:id', authenticate, requireRole(['Admin']), validateRoomId, RoomController.deleteRoom);
+router.delete(
+  '/:id',
+  authenticate,
+  requirePermission(PERMISSIONS.ROOM_DELETE),
+  validateRoomId,
+  RoomController.deleteRoom
+);
 
 module.exports = router;

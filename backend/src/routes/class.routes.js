@@ -1,51 +1,59 @@
 const express = require('express');
 const router = express.Router();
 const classController = require('../controllers/class.controller');
-const { authenticate, requireRole } = require('../middleware/auth');
+const { authenticate, requirePermission } = require('../middleware/auth');
+const { PERMISSIONS } = require('../config/permissions');
 const { validateClassCreation, validateClassUpdate } = require('../validators/class.validator');
 
-// ==================== CLASS ROUTES ====================
+router.get(
+  '/',
+  authenticate,
+  requirePermission(PERMISSIONS.CLASS_LIST_READ),
+  classController.getAllClasses
+);
 
-/**
- * GET /api/classes
- * Get all classes with pagination and filtering
- */
-router.get('/', authenticate, classController.getAllClasses);
+router.post(
+  '/',
+  authenticate,
+  requirePermission(PERMISSIONS.CLASS_CREATE),
+  validateClassCreation,
+  classController.createClass
+);
 
-/**
- * POST /api/classes
- * Create a new class (Admin only)
- */
-router.post('/', authenticate, requireRole(['Admin']), validateClassCreation, classController.createClass);
+router.get(
+  '/statistics',
+  authenticate,
+  requirePermission(PERMISSIONS.CLASS_STATISTICS_READ),
+  classController.getClassStatistics
+);
 
-/**
- * GET /api/classes/statistics
- * Get class statistics for dashboard
- */
-router.get('/statistics', authenticate, classController.getClassStatistics);
+router.get(
+  '/campus/:campusId',
+  authenticate,
+  requirePermission(PERMISSIONS.CLASS_BY_CAMPUS_READ),
+  classController.getClassesByCampus
+);
 
-/**
- * GET /api/classes/campus/:campusId
- * Get classes by campus
- */
-router.get('/campus/:campusId', authenticate, classController.getClassesByCampus);
+router.get(
+  '/:classId',
+  authenticate,
+  requirePermission(PERMISSIONS.CLASS_ITEM_READ),
+  classController.getClassById
+);
 
-/**
- * GET /api/classes/:classId
- * Get a class by ID
- */
-router.get('/:classId', authenticate, classController.getClassById);
+router.put(
+  '/:classId',
+  authenticate,
+  requirePermission(PERMISSIONS.CLASS_EDIT),
+  validateClassUpdate,
+  classController.updateClass
+);
 
-/**
- * PUT /api/classes/:classId
- * Update class information (Admin only)
- */
-router.put('/:classId', authenticate, requireRole(['Admin']), validateClassUpdate, classController.updateClass);
-
-/**
- * DELETE /api/classes/:classId
- * Delete class (Admin only)
- */
-router.delete('/:classId', authenticate, requireRole(['Admin']), classController.deleteClass);
+router.delete(
+  '/:classId',
+  authenticate,
+  requirePermission(PERMISSIONS.CLASS_DELETE),
+  classController.deleteClass
+);
 
 module.exports = router;

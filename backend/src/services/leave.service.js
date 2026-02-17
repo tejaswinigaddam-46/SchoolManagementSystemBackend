@@ -95,15 +95,12 @@ const getMyLeaveRequests = async (tenantId, campusId, username) => {
   return await leaveModel.getMyLeaveRequests(tenantId, campusId, username);
 };
 
-const getPendingApprovals = async (tenantId, campusId, approverUsername, approverRole) => {
+const getPendingApprovals = async (tenantId, campusId, approverUsername) => {
   const assigned = await leaveModel.getPendingApprovalsForUser(approverUsername);
-  if (approverRole === 'Zonaladmin' || approverRole === 'Superadmin') {
-    return assigned;
-  }
   return assigned;
 };
 
-const getCompletedApprovals = async (tenantId, campusId, approverUsername, approverRole) => {
+const getCompletedApprovals = async (tenantId, campusId, approverUsername) => {
   return await leaveModel.getCompletedApprovalsForUser(approverUsername);
 };
 

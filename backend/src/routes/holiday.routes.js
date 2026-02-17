@@ -1,25 +1,47 @@
 const express = require('express');
 const router = express.Router();
 const holidayController = require('../controllers/holiday.controller');
-const { authenticate, requireRole } = require('../middleware/auth');
+const { authenticate, requirePermission } = require('../middleware/auth');
+const { PERMISSIONS } = require('../config/permissions');
 
 // Apply auth middleware to all routes
 router.use(authenticate);
 
 // Get all holidays
-router.get('/:campusId', holidayController.getAllHolidays);
+router.get(
+  '/:campusId',
+  requirePermission(PERMISSIONS.HOLIDAY_LIST_READ),
+  holidayController.getAllHolidays
+);
 // Check if a specific date is a holiday
-router.get('/:campusId/check-date', holidayController.checkDate);
+router.get(
+  '/:campusId/check-date',
+  requirePermission(PERMISSIONS.HOLIDAY_CHECK_DATE_READ),
+  holidayController.checkDate
+);
 // Get calculated holidays summary
-router.get('/:campusId/calculated', holidayController.getCalculatedHolidays);
+router.get(
+  '/:campusId/calculated',
+  requirePermission(PERMISSIONS.HOLIDAY_CALCULATED_READ),
+  holidayController.getCalculatedHolidays
+);
 
-// Create holiday (Admin only)
-router.post('/:campusId', requireRole(['Admin']), holidayController.createHoliday);
+router.post(
+  '/:campusId',
+  requirePermission(PERMISSIONS.HOLIDAY_CREATE),
+  holidayController.createHoliday
+);
 
-// Update holiday (Admin only)
-router.put('/:campusId/:id', requireRole(['Admin']), holidayController.updateHoliday);
+router.put(
+  '/:campusId/:id',
+  requirePermission(PERMISSIONS.HOLIDAY_EDIT),
+  holidayController.updateHoliday
+);
 
-// Delete holiday (Admin only)
-router.delete('/:campusId/:id', requireRole(['Admin']), holidayController.deleteHoliday);
+router.delete(
+  '/:campusId/:id',
+  requirePermission(PERMISSIONS.HOLIDAY_DELETE),
+  holidayController.deleteHoliday
+);
 
 module.exports = router;

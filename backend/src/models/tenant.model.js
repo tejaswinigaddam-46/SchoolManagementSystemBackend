@@ -61,7 +61,7 @@ const checkEmailExists = async (email) => {
  * @returns {Promise<Object>} Created tenant and admin user data
  * @throws {Error} If database operation fails
  */
-const createTenantWithAdmin = async (tenantData, campusData, req = {}, res) => {
+const createTenantWithSuperadmin = async (tenantData, campusData, req = {}, res) => {
     req.body = req.body || {}; // Ensure req.body is initialized
 
     const client = await pool.connect();
@@ -112,7 +112,7 @@ const createTenantWithAdmin = async (tenantData, campusData, req = {}, res) => {
             middle_name: tenantData.adminMiddleName,
             last_name: tenantData.adminLastName,
             phone_number: tenantData.adminPhone,
-            role: 'Admin',
+            role: 'Superadmin',
             date_of_birth: tenantData.adminDOB
         };
         req.user = {
@@ -308,7 +308,7 @@ const updateTenant = async (tenantId, updateData) => {
 module.exports = {
     checkSubdomainExists,
     checkEmailExists,
-    createTenantWithAdmin,
+    createTenantWithSuperadmin,
     findTenantBySubdomain,
     findTenantById,
     getAllTenants,

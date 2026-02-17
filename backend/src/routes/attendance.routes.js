@@ -1,20 +1,21 @@
 const express = require('express');
 const router = express.Router();
 const attendanceController = require('../controllers/attendance.controller');
-const { authenticate, requireRole } = require('../middleware/auth');
+const { authenticate, requirePermission } = require('../middleware/auth');
+const { PERMISSIONS } = require('../config/permissions');
 
-// ==================== ATTENDANCE ROUTES ====================
+router.get(
+  '/',
+  authenticate,
+  requirePermission(PERMISSIONS.ATTENDANCE_LIST_READ),
+  attendanceController.getAttendance
+);
 
-/**
- * GET /api/attendance
- * Get attendance records for a class section on a specific date
- */
-router.get('/', authenticate, requireRole(['Admin', 'Teacher', 'Principal']), attendanceController.getAttendance);
-
-/**
- * POST /api/attendance
- * Save attendance records (bulk)
- */
-router.post('/', authenticate, requireRole(['Admin', 'Teacher', 'Principal']), attendanceController.saveAttendance);
+router.post(
+  '/',
+  authenticate,
+  requirePermission(PERMISSIONS.ATTENDANCE_SAVE_CREATE),
+  attendanceController.saveAttendance
+);
 
 module.exports = router;

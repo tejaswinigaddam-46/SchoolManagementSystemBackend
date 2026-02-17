@@ -37,18 +37,10 @@ const getAllBuildings = async (req, res) => {
 
 /**
  * Create a new building
- * Access: Admin only
+ * Access: Requires building create permission
  */
 const createBuilding = async (req, res) => {
     try {
-        // Check if user is admin
-        if (req.user.role !== 'Admin') {
-            return res.status(403).json({
-                success: false,
-                message: 'Access denied. Only admins can create buildings.'
-            });
-        }
-
         const { building_name, number_of_floors } = req.body;
         
         // Use campus ID from authenticated user context
@@ -107,18 +99,10 @@ const createBuilding = async (req, res) => {
 
 /**
  * Update an existing building
- * Access: Admin only
+ * Access: Requires building edit permission
  */
 const updateBuilding = async (req, res) => {
     try {
-        // Check if user is admin
-        if (req.user.role !== 'Admin') {
-            return res.status(403).json({
-                success: false,
-                message: 'Access denied. Only admins can update buildings.'
-            });
-        }
-
         const { id } = req.params;
         const campusId = req.user.campusId;
         
@@ -192,18 +176,10 @@ const updateBuilding = async (req, res) => {
 
 /**
  * Delete a building
- * Access: Admin only
+ * Access: Requires building delete permission
  */
 const deleteBuilding = async (req, res) => {
     try {
-        // Check if user is admin
-        if (req.user.role !== 'Admin') {
-            return res.status(403).json({
-                success: false,
-                message: 'Access denied. Only admins can delete buildings.'
-            });
-        }
-
         const { id } = req.params;
         const campusId = req.user.campusId;
         

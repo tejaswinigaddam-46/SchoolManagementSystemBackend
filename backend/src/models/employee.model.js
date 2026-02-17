@@ -175,7 +175,7 @@ const createEmployeeWithClient = async (client, employeeData, tenantId, campusId
         phone_number: employeeData.user.phone_number?.trim() || null,
         password_hash: passwordHash,
         date_of_birth: employeeData.user.date_of_birth,
-        role: employeeData.user.role || 'Teacher'
+        role: employeeData.user.role
     };
     
     logger.info('MODEL: Prepared user data', {

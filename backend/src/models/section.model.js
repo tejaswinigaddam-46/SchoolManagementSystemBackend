@@ -328,6 +328,14 @@ const SectionModel = {
     async validateReferences(sectionData, client = pool) {
         try {
             const validations = [];
+            logger.info('validateReferences input', {
+                academic_year_id: sectionData.academic_year_id,
+                class_id: sectionData.class_id,
+                campus_id: sectionData.campus_id,
+                room_id: sectionData.room_id,
+                primary_teacher_user_id: sectionData.primary_teacher_user_id,
+                student_monitor_user_id: sectionData.student_monitor_user_id
+            });
 
             // Validate academic year 
             const academicYearQuery = `
@@ -371,13 +379,12 @@ const SectionModel = {
                         }))
                 );
             }
-
-            // Validate primary teacher (if provided)
+             // Validate primary teacher (if provided)
             if (sectionData.primary_teacher_user_id) {
                 const teacherQuery = `
                     SELECT u.user_id FROM users u
                     INNER JOIN user_statuses us ON u.username = us.username
-                    WHERE u.user_id = $1 AND u.role = 'Teacher' 
+                    WHERE u.user_id = $1 AND u.role = 'Employee' 
                     AND us.campus_id = $2 AND us.status = 'active'
                 `;
                 validations.push(
@@ -407,11 +414,12 @@ const SectionModel = {
             }
 
             const results = await Promise.all(validations);
+            logger.info('validateReferences results', { results });
             const invalidReferences = results.filter(r => !r.valid);
 
             if (invalidReferences.length > 0) {
                 const invalidTypes = invalidReferences.map(r => r.type).join(', ');
-                throw new Error(`Invalid reference(s): ${invalidTypes}`);
+                throw new Error(`Invalid reference(s): ${invalidTypes} ${JSON.stringify(sectionData)}`);
             }
 
             return true;

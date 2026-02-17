@@ -154,7 +154,7 @@ const registerTenant = async (registrationData) => {
     // Create tenant with admin user and campus in transaction
     // (create tenant, then campus, then user, then membership)
     try {
-        const result = await tenantModel.createTenantWithAdmin(tenantData, campusData);
+        const result = await tenantModel.createTenantWithSuperadmin(tenantData, campusData);
         
         return {
             tenant: result.tenant,

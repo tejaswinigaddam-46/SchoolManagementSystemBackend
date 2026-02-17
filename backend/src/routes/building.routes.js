@@ -2,52 +2,45 @@ const express = require('express');
 const router = express.Router();
 const buildingController = require('../controllers/building.controller');
 
-const { authenticate, requireRole } = require('../middleware/auth');
+const { authenticate, requirePermission } = require('../middleware/auth');
+const { PERMISSIONS } = require('../config/permissions');
 const buildingValidator = require('../validators/building.validator');
 
-// ==================== BUILDING ROUTES ====================
-
-/**
- * @route   GET /api/buildings
- * @desc    Get all buildings for current campus
- * @access  Authenticated users (Everyone can view)
- */
-router.get('/', authenticate,buildingController.getAllBuildings);
-
-/**
- * @route   GET /api/buildings/:id
- * @desc    Get building by ID
- * @access  Authenticated users (Everyone can view)
- */
-router.get('/:id', authenticate, buildingController.getBuildingById);
-
-/**
- * @route   POST /api/buildings
- * @desc    Create a new building
- * @access  Admin only
- */
-router.post('/', 
-    authenticate, requireRole(['Admin']),
-    buildingValidator.validateCreateBuilding, 
-    buildingController.createBuilding
+router.get(
+  '/',
+  authenticate,
+  requirePermission(PERMISSIONS.BUILDING_LIST_READ),
+  buildingController.getAllBuildings
 );
 
-/**
- * @route   PUT /api/buildings/:id
- * @desc    Update building by ID
- * @access  Admin only
- */
-router.put('/:id', 
-    authenticate, requireRole(['Admin']),
-    buildingValidator.validateUpdateBuilding, 
-    buildingController.updateBuilding
+router.get(
+  '/:id',
+  authenticate,
+  requirePermission(PERMISSIONS.BUILDING_ITEM_READ),
+  buildingController.getBuildingById
 );
 
-/**
- * @route   DELETE /api/buildings/:id
- * @desc    Delete building by ID
- * @access  Admin only
- */
-router.delete('/:id', authenticate, requireRole(['Admin']), buildingController.deleteBuilding);
+router.post(
+  '/',
+  authenticate,
+  requirePermission(PERMISSIONS.BUILDING_CREATE),
+  buildingValidator.validateCreateBuilding,
+  buildingController.createBuilding
+);
+
+router.put(
+  '/:id',
+  authenticate,
+  requirePermission(PERMISSIONS.BUILDING_EDIT),
+  buildingValidator.validateUpdateBuilding,
+  buildingController.updateBuilding
+);
+
+router.delete(
+  '/:id',
+  authenticate,
+  requirePermission(PERMISSIONS.BUILDING_DELETE),
+  buildingController.deleteBuilding
+);
 
 module.exports = router;

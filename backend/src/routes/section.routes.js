@@ -1,8 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const SectionController = require('../controllers/section.controller');
-const { authenticate, requireRole } = require('../middleware/auth');
-const { validateTenant } = require('../middleware/tenant');
+const { authenticate, requirePermission } = require('../middleware/auth');
+const { PERMISSIONS } = require('../config/permissions');
 const {
     createSection,
     updateSection,
@@ -10,59 +10,66 @@ const {
     queryParams
 } = require('../validators/section.validator');
 
-// ==================== SECTION ROUTES ====================
+router.get(
+  '/filter-options',
+  authenticate,
+  requirePermission(PERMISSIONS.SECTION_FILTER_OPTIONS_READ),
+  SectionController.getFilterOptions
+);
 
-/**
- * GET /api/sections/filter-options
- * Get filter options (academic years and classes) for sections
- * Accessible to all authenticated users
- */
-router.get('/filter-options', authenticate, SectionController.getFilterOptions);
+router.get(
+  '/statistics',
+  authenticate,
+  requirePermission(PERMISSIONS.SECTION_STATISTICS_READ),
+  SectionController.getSectionStatistics
+);
 
-/**
- * GET /api/sections/statistics
- * Get section statistics for current campus
- * Accessible to all authenticated users
- */
-router.get('/statistics', authenticate, SectionController.getSectionStatistics);
+router.get(
+  '/',
+  authenticate,
+  requirePermission(PERMISSIONS.SECTION_LIST_READ),
+  queryParams,
+  SectionController.getAllSections
+);
 
-/**
- * GET /api/sections
- * Get all sections for current campus with pagination and filtering
- * Accessible to all authenticated users
- */
-router.get('/', authenticate, queryParams, SectionController.getAllSections);
+router.post(
+  '/',
+  authenticate,
+  requirePermission(PERMISSIONS.SECTION_CREATE),
+  createSection,
+  SectionController.createSection
+);
 
-/**
- * POST /api/sections
- * Create new section (Admin only)
- */
-router.post('/', authenticate, requireRole(['Admin']), createSection, SectionController.createSection);
+router.get(
+  '/:sectionId',
+  authenticate,
+  requirePermission(PERMISSIONS.SECTION_ITEM_READ),
+  sectionId,
+  SectionController.getSectionById
+);
 
-/**
- * GET /api/sections/:sectionId
- * Get section by ID
- * Accessible to all authenticated users
- */
-router.get('/:sectionId', authenticate, sectionId, SectionController.getSectionById);
+router.get(
+  '/:sectionId/subjects',
+  authenticate,
+  requirePermission(PERMISSIONS.SECTION_SUBJECTS_READ),
+  sectionId,
+  SectionController.getSectionSubjects
+);
 
-/**
- * GET /api/sections/:sectionId/subjects
- * Get subjects for a section
- * Accessible to all authenticated users
- */
-router.get('/:sectionId/subjects', authenticate, sectionId, SectionController.getSectionSubjects);
+router.put(
+  '/:sectionId',
+  authenticate,
+  requirePermission(PERMISSIONS.SECTION_EDIT),
+  updateSection,
+  SectionController.updateSection
+);
 
-/**
- * PUT /api/sections/:sectionId
- * Update section (Admin only)
- */
-router.put('/:sectionId', authenticate, requireRole(['Admin']), updateSection, SectionController.updateSection);
-
-/**
- * DELETE /api/sections/:sectionId
- * Delete section (Admin only)
- */
-router.delete('/:sectionId', authenticate, requireRole(['Admin']), sectionId, SectionController.deleteSection);
+router.delete(
+  '/:sectionId',
+  authenticate,
+  requirePermission(PERMISSIONS.SECTION_DELETE),
+  sectionId,
+  SectionController.deleteSection
+);
 
 module.exports = router;

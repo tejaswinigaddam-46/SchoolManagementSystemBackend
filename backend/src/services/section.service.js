@@ -23,6 +23,11 @@ const SectionService = {
                 campus_id: campusId
             };
 
+            logger.info('createSection service called', {
+                tenantId,
+                campusId,
+                sectionPayload
+            });
             // Validate foreign key references
             await SectionModel.validateReferences(sectionPayload);
 
@@ -158,7 +163,12 @@ const SectionService = {
             if (!sectionId || isNaN(parseInt(sectionId))) {
                 throw new Error('Valid section ID is required');
             }
-
+            logger.info('updateSection service called', {
+                tenantId,
+                campusId,
+                sectionId,
+                sectionPayload: sectionData
+            });
             // Check if section exists
             const existingSection = await SectionModel.getById(parseInt(sectionId), campusId);
             if (!existingSection) {
@@ -195,7 +205,9 @@ const SectionService = {
                     primary_teacher_user_id: updateData.primary_teacher_user_id,
                     student_monitor_user_id: updateData.student_monitor_user_id
                 };
-
+                logger.info('Starting Validation data for section references', {
+                    validationData
+                });
                 await SectionModel.validateReferences(validationData);
             }
 

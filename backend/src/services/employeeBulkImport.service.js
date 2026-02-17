@@ -101,7 +101,7 @@ const generateTemplate = async () => {
         role: 'Employee',
         email: 'john.smith@school.edu',
         contactPhone: '+1234567890',
-        altPhone: '+0987654321',
+        altPhone: '+9087654321',
         emergencyName: 'Jane Smith',
         emergencyPhone: '+1234567891',
         emergencyRelation: 'Spouse',

@@ -1,22 +1,33 @@
 const express = require('express');
 const router = express.Router();
 const weekendPolicyController = require('../controllers/weekendPolicy.controller');
-const { authenticate, requireRole } = require('../middleware/auth');
+const { authenticate, requirePermission } = require('../middleware/auth');
+const { PERMISSIONS } = require('../config/permissions');
 
-// Apply authentication to all routes
 router.use(authenticate);
 
-// Routes
-// Get all policies for a campus
-router.get('/:campusId', weekendPolicyController.getAllPolicies);
+router.get(
+  '/:campusId',
+  requirePermission(PERMISSIONS.WEEKEND_POLICY_LIST_READ),
+  weekendPolicyController.getAllPolicies
+);
 
-// Upsert policy (Create or Update) - Admin only
-router.post('/:campusId', requireRole(['Admin']), weekendPolicyController.upsertPolicy);
+router.post(
+  '/:campusId',
+  requirePermission(PERMISSIONS.WEEKEND_POLICY_CREATE),
+  weekendPolicyController.upsertPolicy
+);
 
-// Get single policy
-router.get('/:campusId/:id', weekendPolicyController.getPolicy);
+router.get(
+  '/:campusId/:id',
+  requirePermission(PERMISSIONS.WEEKEND_POLICY_ITEM_READ),
+  weekendPolicyController.getPolicy
+);
 
-// Delete policy - Admin only
-router.delete('/:campusId/:id', requireRole(['Admin']), weekendPolicyController.deletePolicy);
+router.delete(
+  '/:campusId/:id',
+  requirePermission(PERMISSIONS.WEEKEND_POLICY_DELETE),
+  weekendPolicyController.deletePolicy
+);
 
 module.exports = router;

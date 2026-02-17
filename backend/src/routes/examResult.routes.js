@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
-const { authenticate } = require('../middleware/auth');
+const { authenticate, requirePermission } = require('../middleware/auth');
+const { PERMISSIONS } = require('../config/permissions');
 const {
   createExamResultController,
   bulkCreateExamResultsController,
@@ -15,14 +16,42 @@ const {
 router.use(authenticate);
 
 // Routes
-router.post('/', createExamResultController);
-router.post('/bulk', bulkCreateExamResultsController);
-router.get('/:id', getExamResultByIdController);
-router.put('/:id', updateExamResultController);
-router.delete('/:id', deleteExamResultController);
+router.post(
+  '/',
+  requirePermission(PERMISSIONS.EXAM_RESULT_CREATE),
+  createExamResultController
+);
+router.post(
+  '/bulk',
+  requirePermission(PERMISSIONS.EXAM_RESULT_BULK_CREATE),
+  bulkCreateExamResultsController
+);
+router.get(
+  '/:id',
+  requirePermission(PERMISSIONS.EXAM_RESULT_ITEM_READ),
+  getExamResultByIdController
+);
+router.put(
+  '/:id',
+  requirePermission(PERMISSIONS.EXAM_RESULT_EDIT),
+  updateExamResultController
+);
+router.delete(
+  '/:id',
+  requirePermission(PERMISSIONS.EXAM_RESULT_DELETE),
+  deleteExamResultController
+);
 
 // Specific lookups
-router.get('/exam/:examId', getExamResultsByExamIdController);
-router.get('/student/:studentId', getExamResultsByStudentIdController);
+router.get(
+  '/exam/:examId',
+  requirePermission(PERMISSIONS.EXAM_RESULT_BY_EXAM_READ),
+  getExamResultsByExamIdController
+);
+router.get(
+  '/student/:studentId',
+  requirePermission(PERMISSIONS.EXAM_RESULT_BY_STUDENT_READ),
+  getExamResultsByStudentIdController
+);
 
 module.exports = router;

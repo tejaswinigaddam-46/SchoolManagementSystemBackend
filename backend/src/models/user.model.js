@@ -285,7 +285,7 @@ const UserModel = {
             if (classId || sectionId) {
                 joinClause += `
                     LEFT JOIN student_enrollment se ON u.username = se.username
-                    LEFT JOIN classes c ON se.class_name = c.class_name
+                    LEFT JOIN classes c ON se.class_id = c.class_id
                 `;
             }
 

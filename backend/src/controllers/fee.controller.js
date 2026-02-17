@@ -1,4 +1,5 @@
 const feeService = require('../services/fee.service');
+const logger = require('../utils/logger');
 
 // Create fee structure with installments (atomic)
 const createFeeStructure = async (req, res) => {
@@ -165,13 +166,49 @@ const getInstallmentsByStructure = async (req, res) => {
   }
 };
 
-// Generate Dues
 const generateDuesForClass = async (req, res) => {
   try {
-    const tenant_id = req.user?.tenantId || req.tenantId;
-    const result = await feeService.generateDuesForClass({ ...req.body, tenant_id });
+    const tenant_id = req.user?.tenantId;
+    const campus_id = req.user?.campusId;
+
+    const academic_year_id = req.body.academic_year_id || req.body.academicYearId;
+    const class_id = req.body.class_id || req.body.classId;
+    const class_name = req.body.class_name || req.body.className;
+
+    logger.info('FEE: generateDuesForClass controller START', {
+      tenant_id,
+      campus_id,
+      academic_year_id,
+      class_id,
+      class_name,
+      raw_body: req.body
+    });
+
+    const payload = {
+      tenant_id,
+      campus_id,
+      academic_year_id,
+      class_id,
+      class_name
+    };
+
+    const result = await feeService.generateDuesForClass(payload);
+
+    logger.info('FEE: generateDuesForClass controller SUCCESS', {
+      tenant_id,
+      campus_id,
+      academic_year_id,
+      class_id,
+      totalStudents: result?.totalStudents,
+      totalAssigned: result?.totalAssigned
+    });
+
     return res.status(200).json({ success: true, data: result });
   } catch (err) {
+    logger.error('FEE: generateDuesForClass controller ERROR', {
+      message: err.message,
+      stack: err.stack
+    });
     return res.status(400).json({ success: false, message: err.message });
   }
 };

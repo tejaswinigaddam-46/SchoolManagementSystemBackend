@@ -163,14 +163,27 @@ const registerStudent = async (studentData, tenantId, campusId) => {
         // After enrollment creation, auto-assign fees in the same transaction
         try {
             const enrollment = studentResult?.enrollment;
-            if (enrollment?.academic_year_id && enrollment?.class_name) {
-                await feeService.assignFeesForEnrollmentWithClient(client, {
-                    tenant_id: tenantId,
-                    campus_id: campusId,
-                    academic_year_id: enrollment.academic_year_id,
-                    class_name: enrollment.class_name,
-                    username: studentResult.username
-                });
+            if (enrollment?.academic_year_id && enrollment?.class_id) {
+                const classId = Number(enrollment.class_id);
+                const classRes = await client.query(
+                    'SELECT class_name FROM classes WHERE class_id = $1',
+                    [classId]
+                );
+                const className = classRes.rows[0]?.class_name;
+                if (className) {
+                    await feeService.assignFeesForEnrollmentWithClient(client, {
+                        tenant_id: tenantId,
+                        campus_id: campusId,
+                        academic_year_id: enrollment.academic_year_id,
+                        class_name: className,
+                        username: studentResult.username
+                    });
+                } else {
+                    logger.warn('SERVICE: Could not resolve class name for fee assignment', {
+                        campusId,
+                        class_id: enrollment.class_id
+                    });
+                }
             }
         } catch (feeErr) {
             logger.warn('SERVICE: Fee assignment skipped/failed (non-blocking)', { error: feeErr.message });
@@ -1101,7 +1114,7 @@ const getStudentsByFilters = async (filters) => {
                         AND us.status = 'active'
                         AND se.section_id IS NOT NULL 
                         AND se.section_id > 0
-                    GROUP BY u.user_id, u.username, u.first_name, u.middle_name, u.last_name, se.admission_number, se.academic_year_id, se.class_name, se.section_id, cs.section_name, se.roll_number, se.admission_date
+                    GROUP BY u.user_id, u.username, u.first_name, u.middle_name, u.last_name, se.admission_number, se.academic_year_id, c.class_name, se.section_id, cs.section_name, se.roll_number, se.admission_date
                     ORDER BY u.first_name, u.last_name
                 `;
             } else {
@@ -1218,7 +1231,7 @@ const assignStudentsToSection = async (assignmentData) => {
                 se.section_id as current_section_id
             FROM users u
             INNER JOIN student_enrollment se ON u.username = se.username
-            INNER JOIN classes c ON se.class_name = c.class_name
+            INNER JOIN classes c ON se.class_id = c.class_id
             INNER JOIN user_statuses us ON u.username = us.username AND us.campus_id = se.campus_id
             WHERE u.tenant_id = $1 
                 AND se.campus_id = $2
@@ -1328,12 +1341,12 @@ const updateStudentSection = async (studentId, sectionId, tenantId, campusId) =>
                 u.username,
                 se.admission_number,
                 se.academic_year_id,
-                se.class_name,
+                c.class_name,
                 se.section_id as current_section_id,
                 c.class_id
             FROM users u
             INNER JOIN student_enrollment se ON u.username = se.username
-            INNER JOIN classes c ON se.class_name = c.class_name
+            INNER JOIN classes c ON se.class_id = c.class_id
             INNER JOIN user_statuses us ON u.username = us.username AND us.campus_id = se.campus_id
             WHERE u.user_id = $1 
                 AND u.tenant_id = $2
@@ -1445,7 +1458,6 @@ const deassignStudentSection = async (studentId, tenantId, campusId) => {
                 u.username,
                 se.admission_number,
                 se.academic_year_id,
-                se.class_name,
                 se.section_id as current_section_id,
                 cs.section_name as current_section_name
             FROM users u

@@ -26,7 +26,7 @@ async function getConsolidatedAttendance(campusId, roles, yearName, startDate, e
             FROM users u
             JOIN user_statuses us ON u.username = us.username
             LEFT JOIN student_enrollment se ON u.username = se.username
-            LEFT JOIN classes c ON se.class_name = c.class_name
+            LEFT JOIN classes c ON se.class_id = c.class_id
             LEFT JOIN academic_years ay ON se.academic_year_id = ay.academic_year_id
             WHERE u.tenant_id = $1 AND us.campus_id = $2 AND us.status = 'active'
             AND u.role = ANY($3)

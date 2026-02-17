@@ -1,39 +1,42 @@
 const express = require('express');
 const router = express.Router();
 const campusController = require('../controllers/campus.controller');
-const { authenticate } = require('../middleware/auth');
-const { requireRole } = require('../middleware/auth');
+const { authenticate, requirePermission } = require('../middleware/auth');
+const { PERMISSIONS } = require('../config/permissions');
 
-// ==================== CAMPUS ROUTES ====================
+router.get(
+  '/',
+  authenticate,
+  requirePermission(PERMISSIONS.CAMPUS_LIST_READ),
+  campusController.getAllCampuses
+);
 
-/**
- * GET /api/campuses
- * Get all campuses for the authenticated user's tenant
- */
-router.get('/', authenticate, requireRole(['Superadmin']), campusController.getAllCampuses);
+router.post(
+  '/',
+  authenticate,
+  requirePermission(PERMISSIONS.CAMPUS_CREATE),
+  campusController.registerCampus
+);
 
-/**
- * POST /api/campuses
- * Create a new campus
- */
-router.post('/', authenticate, requireRole(['Superadmin']), campusController.registerCampus);
+router.get(
+  '/:id',
+  authenticate,
+  requirePermission(PERMISSIONS.CAMPUS_ITEM_READ),
+  campusController.getCampusById
+);
 
-/**
- * GET /api/campuses/:id
- * Get a campus by ID for the authenticated user's tenant
- */
-router.get('/:id', authenticate, campusController.getCampusById);
+router.put(
+  '/:id',
+  authenticate,
+  requirePermission(PERMISSIONS.CAMPUS_UPDATE),
+  campusController.updateCampus
+);
 
-/**
- * PUT /api/campuses/:id
- * Update a campus by ID
- */
-router.put('/:id', authenticate, requireRole(['Superadmin']), campusController.updateCampus);
-
-/**
- * DELETE /api/campuses/:id
- * Delete a campus by ID
- */
-router.delete('/:id', authenticate, requireRole(['Superadmin']), campusController.deleteCampus);
+router.delete(
+  '/:id',
+  authenticate,
+  requirePermission(PERMISSIONS.CAMPUS_DELETE),
+  campusController.deleteCampus
+);
 
 module.exports = router;

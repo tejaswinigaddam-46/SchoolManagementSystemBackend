@@ -1,6 +1,7 @@
 const express = require('express');
 const { identifyTenant } = require('../middleware/tenant');
-const { authenticate } = require('../middleware/auth');
+const { authenticate, requirePermission } = require('../middleware/auth');
+const { PERMISSIONS } = require('../config/permissions');
 const loginController = require('../controllers/login.controller');
 const { getProfile } = require('../controllers/user.controller');
 
@@ -31,7 +32,12 @@ router.post('/resolve-tenant', loginController.resolveTenant);
  * GET /api/auth/profile
  * Get current user profile
  */
-router.get('/profile', authenticate, getProfile);
+router.get(
+  '/profile',
+  authenticate,
+  requirePermission(PERMISSIONS.AUTH_PROFILE_READ),
+  getProfile
+);
 
 // /**
 //  * POST /api/auth/verify
@@ -52,7 +58,12 @@ router.post('/logout', loginController.logout);
 //  * PUT /api/auth/change-password
 //  * Change user password
 //  */
-router.put('/change-password', authenticate, loginController.changePassword);
+router.put(
+  '/change-password',
+  authenticate,
+  requirePermission(PERMISSIONS.AUTH_CHANGE_PASSWORD_EDIT),
+  loginController.changePassword
+);
 
 // ==================== USER MANAGEMENT ROUTES ====================
 // These routes require authentication and admin role

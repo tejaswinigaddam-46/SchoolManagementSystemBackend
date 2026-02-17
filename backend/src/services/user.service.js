@@ -4,6 +4,7 @@ const UserModel = require('../models/user.model');
 const AttendanceModel = require('../models/attendance.model');
 const StudentModel = require('../models/student.model');
 const EmployeeModel = require('../models/employee.model');
+const PermissionService = require('./permission.service');
 const logger = require('../utils/logger');
 
 /**
@@ -268,17 +269,40 @@ async function getUserProfile(username, tenantId) {
         }
 
         const campusId = await UserModel.getUserCampusId(user.username, tenantId);
-        const campusService = require('./campus.service');
-        const campusDetails = await campusService.getCampusById(campusId, tenantId);
-
+        let campusDetails = null;
+        
+        if (campusId) {
+            const campusService = require('./campus.service');
+            campusDetails = await campusService.getCampusById(campusId, tenantId);
+        }
+        
         if (!campusDetails) {
-            logger.error('No campus found for user in getUserProfile', {
+            logger.warn('No campus found for user in getUserProfile', {
                 method: 'getUserProfile',
-                error: 'No Campus found for user',
                 username,
                 campusId
             });
-            throw new Error('No Campus found for user', username);
+        }
+
+        let permissionCodes = [];
+
+        if (campusId) {
+            try {
+                const rolePermissions = await PermissionService.getRolePermissionsForCampus(campusId, {
+                    role_name: role
+                });
+                permissionCodes = Array.isArray(rolePermissions)
+                    ? Array.from(new Set(rolePermissions.map(p => p.permission_code)))
+                    : [];
+            } catch (err) {
+                logger.warn('Failed to fetch role permissions in getUserProfile', {
+                    method: 'getUserProfile',
+                    username,
+                    tenantId,
+                    campusId,
+                    error: err.message
+                });
+            }
         }
         
         const result = {
@@ -297,11 +321,12 @@ async function getUserProfile(username, tenantId) {
                 subdomain: tenantDetails.subdomain
             },
             role: role,
-            campus:  {
+            campus: campusDetails ? {
                 campus_id: campusDetails.campus_id,
                 campus_name: campusDetails.campus_name,
                 is_main_campus: campusDetails.is_main_campus
-            } 
+            } : null,
+            permissions: permissionCodes
         };
 
         // Fetch additional role-specific details
@@ -363,7 +388,12 @@ async function getUserProfile(username, tenantId) {
         
         logger.info('getUserProfile method completed successfully', {
             method: 'getUserProfile',
-            response: { username: result.user.username, tenantId: result.tenant.tenant_id, role: result.role }
+            response: { 
+                username: result.user.username, 
+                tenantId: result.tenant.tenant_id, 
+                role: result.role,
+                permissionsCount: Array.isArray(result.permissions) ? result.permissions.length : 0
+            }
         });
         
         return result;
@@ -573,7 +603,7 @@ async function getDailyAttendance(campusId, roles, yearName, startDate, endDate,
             JOIN user_statuses us ON u.username = us.username
             LEFT JOIN student_enrollment se ON u.username = se.username
             LEFT JOIN academic_years ay ON se.academic_year_id = ay.academic_year_id
-            LEFT JOIN classes c ON se.class_name = c.class_name
+            LEFT JOIN classes c ON se.class_id = c.class_id
         `;
 
         // Base Where - Step 1: Select all users of respective campusid and status as active

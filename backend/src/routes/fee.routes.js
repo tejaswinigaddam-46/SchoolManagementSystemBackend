@@ -1,30 +1,91 @@
 const express = require('express');
-const { authenticate, requireRole } = require('../middleware/auth');
+const { authenticate, requirePermission } = require('../middleware/auth');
 const feeController = require('../controllers/fee.controller');
+const { PERMISSIONS } = require('../config/permissions');
 
 const router = express.Router();
 
-// Fee Types Management
-router.post('/fee-types', authenticate, requireRole(['Admin', 'Employee']), feeController.createFeeType);
-router.get('/fee-types', authenticate, requireRole(['Admin', 'Employee']), feeController.getFeeTypes);
-router.put('/fee-types/:id', authenticate, requireRole(['Admin', 'Employee']), feeController.updateFeeType);
-router.delete('/fee-types/:id', authenticate, requireRole(['Admin', 'Employee']), feeController.deleteFeeType);
+router.post(
+  '/fee-types',
+  authenticate,
+  requirePermission(PERMISSIONS.FEE_TYPE_CREATE),
+  feeController.createFeeType
+);
+router.get(
+  '/fee-types',
+  authenticate,
+  requirePermission(PERMISSIONS.FEE_TYPE_LIST_READ),
+  feeController.getFeeTypes
+);
+router.put(
+  '/fee-types/:id',
+  authenticate,
+  requirePermission(PERMISSIONS.FEE_TYPE_EDIT),
+  feeController.updateFeeType
+);
+router.delete(
+  '/fee-types/:id',
+  authenticate,
+  requirePermission(PERMISSIONS.FEE_TYPE_DELETE),
+  feeController.deleteFeeType
+);
 
-// Fee Structures
-router.post('/fee-structures', authenticate, requireRole(['Admin', 'Employee']), feeController.createFeeStructure);
-router.get('/fee-structures', authenticate, requireRole(['Admin', 'Employee']), feeController.getAllFeeStructures);
-router.get('/fee-structures/:id', authenticate, requireRole(['Admin', 'Employee']), feeController.getFeeStructureById);
-router.put('/fee-structures/:id', authenticate, requireRole(['Admin', 'Employee']), feeController.updateFeeStructure);
-router.delete('/fee-structures/:id', authenticate, requireRole(['Admin', 'Employee']), feeController.deleteFeeStructure);
+router.post(
+  '/fee-structures',
+  authenticate,
+  requirePermission(PERMISSIONS.FEE_STRUCTURE_CREATE),
+  feeController.createFeeStructure
+);
+router.get(
+  '/fee-structures',
+  authenticate,
+  requirePermission(PERMISSIONS.FEE_STRUCTURE_LIST_READ),
+  feeController.getAllFeeStructures
+);
+router.get(
+  '/fee-structures/:id',
+  authenticate,
+  requirePermission(PERMISSIONS.FEE_STRUCTURE_ITEM_READ),
+  feeController.getFeeStructureById
+);
+router.put(
+  '/fee-structures/:id',
+  authenticate,
+  requirePermission(PERMISSIONS.FEE_STRUCTURE_EDIT),
+  feeController.updateFeeStructure
+);
+router.delete(
+  '/fee-structures/:id',
+  authenticate,
+  requirePermission(PERMISSIONS.FEE_STRUCTURE_DELETE),
+  feeController.deleteFeeStructure
+);
 
-// Dues Generation (Bulk)
-router.post('/dues/generate', authenticate, requireRole(['Admin', 'Employee']), feeController.generateDuesForClass);
+router.post(
+  '/dues/generate',
+  authenticate,
+  requirePermission(PERMISSIONS.FEE_DUES_GENERATE_CREATE),
+  feeController.generateDuesForClass
+);
 
-// Reporting & Student Ledger
-router.get('/dues/student', authenticate, requireRole(['Admin', 'Employee', 'Student', 'Parent']), feeController.getStudentFeeDues);
-router.get('/payments', authenticate, requireRole(['Admin', 'Employee']), feeController.getAllPayments);
+router.get(
+  '/dues/student',
+  authenticate,
+  requirePermission(PERMISSIONS.FEE_STUDENT_DUES_READ),
+  feeController.getStudentFeeDues
+);
+router.get(
+  '/payments',
+  authenticate,
+  requirePermission(PERMISSIONS.FEE_PAYMENTS_LIST_READ),
+  feeController.getAllPayments
+);
 
-// Collect a payment (waterfall allocation)
-router.post('/payments/collect', authenticate, requireRole(['Admin', 'Employee', 'Teacher']), feeController.collectPayment);
+router.post(
+  '/payments/collect',
+  authenticate,
+  requirePermission(PERMISSIONS.FEE_PAYMENTS_COLLECT_CREATE),
+  feeController.collectPayment
+);
 
 module.exports = router;

@@ -54,19 +54,15 @@ const getAllSections = async (req, res) => {
 };
 
 /**
- * Create a new section (Admin only)
+ * Create a new section
+ * Access: Requires section create permission
  * @param {Object} req - Express request object
  * @param {Object} res - Express response object
  */
 const createSection = async (req, res) => {
     try {
-        const { tenantId, campusId, tenant, campus, role } = req.user;
+        const { tenantId, campusId, tenant, campus } = req.user;
         const sectionData = req.body;
-        
-        // Check if user is admin
-        if (role !== 'Admin' && role !== 'Superadmin' && role !== 'Zonaladmin') {
-            return errorResponse(res, 'Only admins can create sections', 403);
-        }
         
         logger.info('Creating new section', { 
             tenantId, 
@@ -177,20 +173,16 @@ const getSectionSubjects = async (req, res) => {
 };
 
 /**
- * Update section information (Admin only)
+ * Update section information
+ * Access: Requires section edit permission
  * @param {Object} req - Express request object
  * @param {Object} res - Express response object
  */
 const updateSection = async (req, res) => {
     try {
-        const { tenantId, campusId, role } = req.user;
+        const { tenantId, campusId } = req.user;
         const sectionId = parseInt(req.params.sectionId);
         const updateData = req.body;
-        
-        // Check if user is admin
-        if (role !== 'Admin' && role !== 'Superadmin' && role !== 'Zonaladmin') {
-            return errorResponse(res, 'Only admins can update sections', 403);
-        }
         
         if (!sectionId || isNaN(sectionId)) {
             return errorResponse(res, 'Invalid section ID', 400);
@@ -234,19 +226,15 @@ const updateSection = async (req, res) => {
 };
 
 /**
- * Delete section (Admin only)
+ * Delete section
+ * Access: Requires section delete permission
  * @param {Object} req - Express request object
  * @param {Object} res - Express response object
  */
 const deleteSection = async (req, res) => {
     try {
-        const { tenantId, campusId, role } = req.user;
+        const { tenantId, campusId } = req.user;
         const sectionId = parseInt(req.params.sectionId);
-        
-        // Check if user is admin
-        if (role !== 'Admin' && role !== 'Superadmin' && role !== 'Zonaladmin') {
-            return errorResponse(res, 'Only admins can delete sections', 403);
-        }
         
         if (!sectionId || isNaN(sectionId)) {
             return errorResponse(res, 'Invalid section ID', 400);

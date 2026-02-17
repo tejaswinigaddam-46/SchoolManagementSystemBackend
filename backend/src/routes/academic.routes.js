@@ -1,95 +1,105 @@
 const express = require('express');
 const router = express.Router();
 const academicController = require('../controllers/academic.controller');
-const { authenticate } = require('../middleware/auth');
-const { requireRole } = require('../middleware/auth');
+const { authenticate, requirePermission } = require('../middleware/auth');
+const { PERMISSIONS } = require('../config/permissions');
 
-// ==================== CURRICULA ROUTES ====================
+router.get(
+  '/:campusId/curricula',
+  authenticate,
+  requirePermission(PERMISSIONS.ACADEMIC_CURRICULA_LIST_READ),
+  academicController.getAllCurricula
+);
 
-/**
- * GET /api/academics/:campusId/curricula
- * Get all curricula for a specific campus
- */
-router.get('/:campusId/curricula', authenticate, academicController.getAllCurricula);
+router.post(
+  '/:campusId/curricula',
+  authenticate,
+  requirePermission(PERMISSIONS.ACADEMIC_CURRICULA_CREATE),
+  academicController.createCurriculum
+);
 
-/**
- * POST /api/academics/:campusId/curricula
- * Create a new curriculum for a specific campus
- */
-router.post('/:campusId/curricula', authenticate, requireRole(['Superadmin', 'Admin']), academicController.createCurriculum);
+router.get(
+  '/:campusId/curricula/:curriculumId',
+  authenticate,
+  requirePermission(PERMISSIONS.ACADEMIC_CURRICULA_ITEM_READ),
+  academicController.getCurriculumById
+);
 
-/**
- * GET /api/academics/:campusId/curricula/:curriculumId
- * Get a curriculum by ID for a specific campus
- */
-router.get('/:campusId/curricula/:curriculumId', authenticate, requireRole(['Superadmin', 'Admin']), academicController.getCurriculumById);
+router.put(
+  '/:campusId/curricula/:curriculumId',
+  authenticate,
+  requirePermission(PERMISSIONS.ACADEMIC_CURRICULA_ITEM_EDIT),
+  academicController.updateCurriculum
+);
 
-/**
- * PUT /api/academics/:campusId/curricula/:curriculumId
- * Update a curriculum by ID for a specific campus
- */
-router.put('/:campusId/curricula/:curriculumId', authenticate, requireRole(['Superadmin', 'Admin']), academicController.updateCurriculum);
+router.delete(
+  '/:campusId/curricula/:curriculumId',
+  authenticate,
+  requirePermission(PERMISSIONS.ACADEMIC_CURRICULA_ITEM_DELETE),
+  academicController.deleteCurriculum
+);
 
-/**
- * DELETE /api/academics/:campusId/curricula/:curriculumId
- * Delete a curriculum by ID for a specific campus
- */
-router.delete('/:campusId/curricula/:curriculumId', authenticate, requireRole(['Superadmin']), academicController.deleteCurriculum);
+router.get(
+  '/:campusId/academic-year-options',
+  authenticate,
+  requirePermission(PERMISSIONS.ACADEMIC_YEAR_OPTIONS_READ),
+  academicController.getAcademicYearOptions
+);
 
-// ==================== ACADEMIC YEARS ROUTES ====================
+router.get(
+  '/:campusId/year-names',
+  authenticate,
+  requirePermission(PERMISSIONS.ACADEMIC_YEAR_NAMES_READ),
+  academicController.getDistinctYearNames
+);
 
-/**
- * GET /api/academics/:campusId/academic-year-options
- * Get academic year options for dropdown (joins academic_years and curricula)
- */
-router.get('/:campusId/academic-year-options', authenticate, academicController.getAcademicYearOptions);
+router.get(
+  '/:campusId/media',
+  authenticate,
+  requirePermission(PERMISSIONS.ACADEMIC_MEDIA_READ),
+  academicController.getDistinctMedia
+);
 
-/**
- * GET /api/academics/:campusId/year-names
- * Get distinct year names for dropdown
- */
-router.get('/:campusId/year-names', authenticate, academicController.getDistinctYearNames);
+router.get(
+  '/:campusId/academic-year-id',
+  authenticate,
+  requirePermission(PERMISSIONS.ACADEMIC_YEAR_ID_READ),
+  academicController.getAcademicYearIdByCombo
+);
 
-/**
- * GET /api/academics/:campusId/media
- * Get distinct media for dropdown
- */
-router.get('/:campusId/media', authenticate, academicController.getDistinctMedia);
+router.get(
+  '/:campusId/academic-years',
+  authenticate,
+  requirePermission(PERMISSIONS.ACADEMIC_YEARS_LIST_READ),
+  academicController.getAllAcademicYears
+);
 
-/**
- * GET /api/academics/:campusId/academic-year-id
- * Get academic year ID by combination (query params: yearName, curriculumId, medium)
- */
-router.get('/:campusId/academic-year-id', authenticate, academicController.getAcademicYearIdByCombo);
+router.post(
+  '/:campusId/academic-years',
+  authenticate,
+  requirePermission(PERMISSIONS.ACADEMIC_YEAR_CREATE),
+  academicController.createAcademicYear
+);
 
-/**
- * GET /api/academics/:campusId/academic-years
- * Get all academic years for a specific campus
- */
-router.get('/:campusId/academic-years', authenticate, academicController.getAllAcademicYears);
+router.get(
+  '/:campusId/academic-years/:academicYearId',
+  authenticate,
+  requirePermission(PERMISSIONS.ACADEMIC_YEAR_ITEM_READ),
+  academicController.getAcademicYearById
+);
 
-/**
- * POST /api/academics/:campusId/academic-years
- * Create a new academic year for a specific campus
- */
-router.post('/:campusId/academic-years', authenticate, requireRole(['Superadmin', 'Admin']), academicController.createAcademicYear);
+router.put(
+  '/:campusId/academic-years/:academicYearId',
+  authenticate,
+  requirePermission(PERMISSIONS.ACADEMIC_YEAR_ITEM_EDIT),
+  academicController.updateAcademicYear
+);
 
-/**
- * GET /api/academics/:campusId/academic-years/:academicYearId
- * Get an academic year by ID for a specific campus
- */
-router.get('/:campusId/academic-years/:academicYearId', authenticate, academicController.getAcademicYearById);
-
-/**
- * PUT /api/academics/:campusId/academic-years/:academicYearId
- * Update an academic year by ID for a specific campus
- */
-router.put('/:campusId/academic-years/:academicYearId', authenticate, requireRole(['Superadmin', 'Admin']), academicController.updateAcademicYear);
-
-/**
- * DELETE /api/academics/:campusId/academic-years/:academicYearId
- * Delete an academic year by ID for a specific campus
- */
-router.delete('/:campusId/academic-years/:academicYearId', authenticate, requireRole(['Superadmin']), academicController.deleteAcademicYear);
+router.delete(
+  '/:campusId/academic-years/:academicYearId',
+  authenticate,
+  requirePermission(PERMISSIONS.ACADEMIC_YEAR_ITEM_DELETE),
+  academicController.deleteAcademicYear
+);
 
 module.exports = router;

@@ -31,19 +31,22 @@ app.use(helmet({
 }));
 
 // CORS configuration
+const FRONTEND_URL = process.env.FRONTEND_URL;
+const FRONTEND_BASE_DOMAIN = process.env.FRONTEND_BASE_DOMAIN;
+
 const allowedOrigins = [
-  'http://localhost:3000',      // Standard React dev server
-  'http://localhost:3001',      // Alternative React dev server
-  'http://localhost:5173',      // Vite dev server default
-  'http://localhost:4173',      // Vite preview server
-  'http://127.0.0.1:3000',
-  'http://127.0.0.1:3001',
-  'http://127.0.0.1:5173',
-  'http://127.0.0.1:4173',
-  'http://*.localhost:3000',
-  'http://*.localhost:3001',
-  'http://*.localhost:5173',
-  process.env.FRONTEND_URL
+  // 'http://localhost:3000',      // Standard React dev server
+  // 'http://localhost:3001',      // Alternative React dev server
+  // 'http://localhost:5173',      // Vite dev server default
+  // 'http://localhost:4173',      // Vite preview server
+  // 'http://127.0.0.1:3000',
+  // 'http://127.0.0.1:3001',
+  // 'http://127.0.0.1:5173',
+  // 'http://127.0.0.1:4173',
+  // 'http://*.localhost:3000',
+  // 'http://*.localhost:3001',
+  // 'http://*.localhost:5173',
+  FRONTEND_URL
 ].filter(Boolean);
 
 app.use(cors({
@@ -74,9 +77,12 @@ app.use(cors({
       }
     }
     
-    // In production, allow subdomain patterns for your domain
-    if (process.env.NODE_ENV === 'production') {
-      if (origin.match(/^https:\/\/[a-z0-9-]+\.smartschool\.com$/)) {
+    // In production, allow subdomain patterns for your configured domain
+    if (process.env.NODE_ENV === 'production' && FRONTEND_BASE_DOMAIN) {
+      const escapedDomain = FRONTEND_BASE_DOMAIN.replace(/\./g, '\\.');
+      const subdomainRegex = new RegExp(`^https:\\/\\/[a-z0-9-]+\\.${escapedDomain}$`);
+
+      if (origin === `https://${FRONTEND_BASE_DOMAIN}` || subdomainRegex.test(origin)) {
         return callback(null, true);
       }
     }

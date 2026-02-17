@@ -24,8 +24,8 @@ const getMyLeaves = async (req, res) => {
 
 const getPendingApprovals = async (req, res) => {
   try {
-    const { tenantId, campusId, username, role } = req.user;
-    const rows = await leaveService.getPendingApprovals(tenantId, campusId, username, role);
+    const { tenantId, campusId, username } = req.user;
+    const rows = await leaveService.getPendingApprovals(tenantId, campusId, username);
     return successResponse(res, 'Pending approvals retrieved', rows);
   } catch (err) {
     return errorResponse(res, err.message || 'Failed to load pending approvals', 500);
@@ -34,8 +34,8 @@ const getPendingApprovals = async (req, res) => {
 
 const getCompletedApprovals = async (req, res) => {
   try {
-    const { tenantId, campusId, username, role } = req.user;
-    const rows = await leaveService.getCompletedApprovals(tenantId, campusId, username, role);
+    const { tenantId, campusId, username } = req.user;
+    const rows = await leaveService.getCompletedApprovals(tenantId, campusId, username);
     return successResponse(res, 'Completed approvals retrieved', rows);
   } catch (err) {
     return errorResponse(res, err.message || 'Failed to load completed approvals', 500);
@@ -44,7 +44,7 @@ const getCompletedApprovals = async (req, res) => {
 
 const updateStatus = async (req, res) => {
   try {
-    const { tenantId, campusId, username, roles } = req.user;
+    const { tenantId, campusId, username } = req.user;
     const { id } = req.params;
     const { status, status_reason } = req.body;
 
@@ -53,10 +53,8 @@ const updateStatus = async (req, res) => {
       return errorResponse(res, 'Leave request not found', 404);
     }
 
-    const userRoles = Array.isArray(roles) ? roles : [roles];
-    const privileged = ['Admin', 'Manager', 'Zonaladmin', 'Superadmin'].some(r => userRoles.includes(r));
     const assigned = await require('../models/leave.model').isUserAssignedApproverForRequest(id, username);
-    if (!privileged && !assigned) {
+    if (!assigned) {
       return errorResponse(res, 'Access denied. You are not authorized to update this request.', 403);
     }
 

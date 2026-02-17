@@ -52,6 +52,7 @@ const login = async (req, res) => {
                 tenant: authResult.tenant,
                 role: authResult.role,
                 campus: authResult.campus,
+                permissions: authResult.permissions,
                 access_token: authResult.tokens.access_token,
                 token_type: authResult.tokens.token_type,
                 expires_in: authResult.tokens.expires_in
@@ -298,4 +299,3 @@ module.exports = {
     verifyToken,
     resolveTenant
 };
-
