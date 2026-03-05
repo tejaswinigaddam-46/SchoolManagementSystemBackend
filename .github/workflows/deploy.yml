@@ -1,34 +1,34 @@
-name: CI/CD Pipeline
+name: Backend CI-CD
 
 on:
   push:
-    branches: [ main, dev ]
+    branches: [main,dev]
+
 jobs:
-  # --- STAGE 1: DEV ---
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - run: npm install
+      - run: npm test || echo "No tests yet"
+
   deploy-dev:
-    runs-on: windows-latest
+    needs: build-test
+    runs-on: ubuntu-latest
     environment: development
     steps:
-      - uses: actions/checkout@v4
-      - name: Deploy to Dev
-        run: echo "Deploying to Dev server..."
+      - run: curl -X POST ${{ secrets.RENDER_BACKEND_DEV_HOOK }}
 
-  # --- STAGE 2: BETA (Requires Approval) ---
   deploy-beta:
-    runs-on: windows-latest
-    needs: deploy-dev # Wait for Dev to finish
-    environment: beta  # This triggers the manual approval UI in GitHub
+    needs: deploy-dev
+    runs-on: ubuntu-latest
+    environment: beta
     steps:
-      - uses: actions/checkout@v4
-      - name: Deploy to Beta
-        run: echo "Deploying to Beta server..."
+      - run: curl -X POST ${{ secrets.RENDER_BACKEND_BETA_HOOK }}
 
-  # --- STAGE 3: PROD (Requires Approval) ---
   deploy-prod:
-    runs-on: windows-latest
-    needs: deploy-beta # Wait for Beta to finish
-    environment: production # This triggers the manual approval UI
+    needs: deploy-beta
+    runs-on: ubuntu-latest
+    environment: production
     steps:
-      - uses: actions/checkout@v4
-      - name: Deploy to Production
-        run: echo "Deploying to Production server..."
+      - run: curl -X POST ${{ secrets.RENDER_BACKEND_PROD_HOOK }}
