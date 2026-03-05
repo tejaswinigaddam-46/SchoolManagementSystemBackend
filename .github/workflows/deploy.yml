@@ -1,0 +1,34 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, dev ]
+jobs:
+  # --- STAGE 1: DEV ---
+  deploy-dev:
+    runs-on: windows-latest
+    environment: development
+    steps:
+      - uses: actions/checkout@v4
+      - name: Deploy to Dev
+        run: echo "Deploying to Dev server..."
+
+  # --- STAGE 2: BETA (Requires Approval) ---
+  deploy-beta:
+    runs-on: windows-latest
+    needs: deploy-dev # Wait for Dev to finish
+    environment: beta  # This triggers the manual approval UI in GitHub
+    steps:
+      - uses: actions/checkout@v4
+      - name: Deploy to Beta
+        run: echo "Deploying to Beta server..."
+
+  # --- STAGE 3: PROD (Requires Approval) ---
+  deploy-prod:
+    runs-on: windows-latest
+    needs: deploy-beta # Wait for Beta to finish
+    environment: production # This triggers the manual approval UI
+    steps:
+      - uses: actions/checkout@v4
+      - name: Deploy to Production
+        run: echo "Deploying to Production server..."
