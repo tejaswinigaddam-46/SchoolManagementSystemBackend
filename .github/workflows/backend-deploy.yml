@@ -1,0 +1,124 @@
+name: Backend CI/CD
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'backend/**'
+      - 'tests/backendtests/**'
+  pull_request:
+    paths:
+      - 'backend/**'
+      - 'tests/backendtests/**'
+
+concurrency:
+  group: backend-deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ------------------------
+  # DEV STAGE (TEST)
+  # ------------------------
+  dev-stage:
+    name: Dev Stage (Test)
+    runs-on: ubuntu-latest
+    environment: development
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          cd backend
+          npm install
+
+      - name: Inject DEV env
+        run: |
+          echo "NODE_ENV=test" >> backend/.env
+          echo "FRONTEND_URL=${{ secrets.FRONTEND_URL }}" >> backend/.env
+          echo "DB_HOST=${{ secrets.DB_HOST }}" >> backend/.env
+          echo "DB_NAME=${{ secrets.DB_NAME }}" >> backend/.env
+          echo "DB_USERNAME=${{ secrets.DB_USERNAME }}" >> backend/.env
+          echo "DB_PASSWORD=${{ secrets.DB_PASSWORD }}" >> backend/.env
+          echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> backend/.env
+          echo "CORS_ORIGINS=${{ secrets.CORS_ORIGINS }}" >> backend/.env
+
+      - name: Run Backend Tests
+        run: |
+          cd backend
+          npm test
+
+      # ------------------------
+      # DEPLOY TO DEV SERVER
+      # ------------------------
+      # - name: Deploy to DEV Droplet
+      #   if: github.event_name == 'push'
+      #   uses: appleboy/ssh-action@v1.0.3
+      #   with:
+      #     host: ${{ secrets.DEV_SERVER_HOST }}
+      #     username: ${{ secrets.DEV_SERVER_USER }}
+      #     key: ${{ secrets.DEV_SERVER_SSH_KEY }}
+      #     script: |
+      #       cd /var/www/backend-dev || exit
+      #
+      #       git pull origin main
+      #
+      #       cd backend
+      #       npm install
+      #
+      #       pm2 restart backend || pm2 start src/index.js --name backend
+      #
+      #       # ------------------------
+      #       # FUTURE DOCKER (optional)
+      #       # ------------------------
+      #       # docker build -t backend-dev .
+      #       # docker stop backend-dev || true
+      #       # docker rm backend-dev || true
+      #       # docker run -d -p 5001:5001 --env-file .env --name backend-dev backend-dev
+
+  # ------------------------
+  # PROD STAGE (DEPLOY)
+  # ------------------------
+  prod-stage:
+    name: Prod Stage (Deploy)
+    runs-on: ubuntu-latest
+    needs: dev-stage
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    environment: production
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # - name: Deploy to PROD Droplet
+      #   uses: appleboy/ssh-action@v1.0.3
+      #   with:
+      #     host: ${{ secrets.PROD_SERVER_HOST }}
+      #     username: ${{ secrets.PROD_SERVER_USER }}
+      #     key: ${{ secrets.PROD_SERVER_SSH_KEY }}
+      #     script: |
+      #       cd /var/www/backend-prod || exit
+      #
+      #       git pull origin main
+      #
+      #       cd backend
+      #       npm install
+      #
+      #       pm2 restart backend || pm2 start src/index.js --name backend
+      #
+      #       # ------------------------
+      #       # FUTURE DOCKER (optional)
+      #       # ------------------------
+      #       # docker build -t backend-prod .
+      #       # docker stop backend-prod || true
+      #       # docker rm backend-prod || true
+      #       # docker run -d -p 5001:5001 --env-file .env --name backend-prod backend-prod
