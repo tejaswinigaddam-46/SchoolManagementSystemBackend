@@ -11,23 +11,11 @@ const SectionService = {
      */
     async createSection(sectionData, tenantId, campusId) {
         try {
-            // Validate required fields - curriculum_id is now optional
-            if (!sectionData.academic_year_id || !sectionData.class_id || 
-                !sectionData.section_name) {
-                throw new Error('Academic year, class, and section name are required');
-            }
-
             // Prepare section data with campus ID
             const sectionPayload = {
                 ...sectionData,
                 campus_id: campusId
             };
-
-            logger.info('createSection service called', {
-                tenantId,
-                campusId,
-                sectionPayload
-            });
             // Validate foreign key references
             await SectionModel.validateReferences(sectionPayload);
 
@@ -58,13 +46,6 @@ const SectionService = {
                     logger.error('Failed to update room booking after section creation', e);
                 }
             }
-            
-            logger.info('Section created successfully', {
-                sectionId: newSection.section_id,
-                sectionName: newSection.section_name,
-                tenantId,
-                campusId
-            });
 
             return newSection;
         } catch (error) {
@@ -99,10 +80,6 @@ const SectionService = {
      */
     async getSectionById(sectionId, tenantId, campusId) {
         try {
-            if (!sectionId || isNaN(parseInt(sectionId))) {
-                throw new Error('Valid section ID is required');
-            }
-
             const section = await SectionModel.getById(parseInt(sectionId), campusId);
             
             if (!section) {
@@ -128,10 +105,6 @@ const SectionService = {
      */
     async getSectionSubjects(sectionId, tenantId, campusId) {
         try {
-            if (!sectionId || isNaN(parseInt(sectionId))) {
-                throw new Error('Valid section ID is required');
-            }
-
             // Verify section exists and belongs to campus
             const section = await SectionModel.getById(parseInt(sectionId), campusId);
             if (!section) {
@@ -160,9 +133,6 @@ const SectionService = {
      */
     async updateSection(sectionId, sectionData, tenantId, campusId) {
         try {
-            if (!sectionId || isNaN(parseInt(sectionId))) {
-                throw new Error('Valid section ID is required');
-            }
             logger.info('updateSection service called', {
                 tenantId,
                 campusId,
@@ -186,10 +156,6 @@ const SectionService = {
                 if (sectionData.hasOwnProperty(field)) {
                     updateData[field] = sectionData[field];
                 }
-            }
-
-            if (Object.keys(updateData).length === 0) {
-                throw new Error('No valid fields to update');
             }
 
             // Validate foreign key references if they are being updated

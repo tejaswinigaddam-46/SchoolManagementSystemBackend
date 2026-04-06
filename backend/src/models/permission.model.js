@@ -12,10 +12,6 @@ const PermissionModel = {
   },
 
   getPermissionByCode: async (code) => {
-    if (!code || code.toString().trim() === '' || code === 'undefined' || code === null) {
-      throw new Error('Valid permission code is required');
-    }
-
     const query = `
       SELECT code, name, description, category, created_at
       FROM permissions
@@ -46,9 +42,6 @@ const PermissionModel = {
   },
 
   updatePermission: async (code, updateData) => {
-    if (!code || code.toString().trim() === '' || code === 'undefined' || code === null) {
-      throw new Error('Valid permission code is required');
-    }
 
     const fields = [];
     const values = [];
@@ -82,9 +75,6 @@ const PermissionModel = {
   },
 
   deletePermission: async (code) => {
-    if (!code || code.toString().trim() === '' || code === 'undefined' || code === null) {
-      throw new Error('Valid permission code is required');
-    }
 
     const query = `
       DELETE FROM permissions

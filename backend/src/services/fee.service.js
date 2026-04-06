@@ -1,5 +1,7 @@
 const { pool } = require('../config/database');
 const feeModel = require('../models/fee.model');
+const classModel = require('../models/class.model');
+const studentModel = require('../models/student.model');
 const logger = require('../utils/logger');
 const { v5: uuidv5 } = require('uuid');
 
@@ -13,10 +15,6 @@ const toStudentUUID = (username) => uuidv5(username, NAMESPACE_STUDENT);
 
 // ==================== FEE TYPES ====================
 const createFeeType = async (tenant_id, data) => {
-  if (!tenant_id) throw new Error('tenant_id required');
-  if (!data.campus_id) throw new Error('campus_id required');
-  if (!data.fee_type_name) throw new Error('fee_type_name required');
-
   const client = await pool.connect();
   try {
     const result = await feeModel.createFeeType(client, {
@@ -63,12 +61,6 @@ const deleteFeeType = async (tenant_id, fee_type_id) => {
  * data: { campus_id, academic_year_id, class_name or class_id, fee_type_id, total_amount, installments: [{installment_name, due_date, amount, penalty_amount?}] }
  */
 const createFeeStructure = async (tenant_id, data) => {
-  if (!tenant_id) throw new Error('tenant_id required');
-  if (!data.campus_id) throw new Error('campus_id required');
-  if (!data.academic_year_id) throw new Error('academic_year_id required');
-  if (!data.fee_type_id) throw new Error('fee_type_id required');
-  if (!data.total_amount && data.total_amount !== 0) throw new Error('total_amount required');
-
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -81,9 +73,9 @@ const createFeeStructure = async (tenant_id, data) => {
       class_uuid = toClassUUID(data.campus_id, data.class_name);
     } else if (data.class_id && !isNaN(data.class_id)) {
       // It's an integer ID, fetch class name
-      const res = await client.query('SELECT class_name FROM classes WHERE class_id = $1', [data.class_id]);
-      if (res.rows.length === 0) throw new Error('Class not found');
-      class_uuid = toClassUUID(data.campus_id, res.rows[0].class_name);
+      const className = await classModel.getClassNameById(data.class_id);
+      if (!className) throw new Error('Class not found');
+      class_uuid = toClassUUID(data.campus_id, className);
     }
 
     const payload = {
@@ -113,9 +105,9 @@ const getAllFeeStructures = async (tenant_id, campus_id) => {
   const structures = await feeModel.getAllFeeStructures(tenant_id, campus_id);
   
   // Enrich with class names
-  const classRes = await pool.query('SELECT class_name FROM classes WHERE campus_id = $1', [campus_id]);
+  const classes = await classModel.getClassNamesByCampus(campus_id);
   const uuidMap = {};
-  classRes.rows.forEach(c => {
+  classes.forEach(c => {
     const u = toClassUUID(campus_id, c.class_name);
     uuidMap[u] = c.class_name;
   });
@@ -145,8 +137,8 @@ const getFeeStructureById = async (fee_structure_id) => {
   let class_id_int = null;
   // We need campus_id to look up classes.
   if (structure.campus_id) {
-     const classRes = await pool.query('SELECT class_id, class_name FROM classes WHERE campus_id = $1', [structure.campus_id]);
-     for (const c of classRes.rows) {
+     const classes = await classModel.getClassNamesByCampus(structure.campus_id);
+     for (const c of classes) {
         if (toClassUUID(structure.campus_id, c.class_name) === structure.class_id) {
            class_id_int = c.class_id;
            structure.class_name = c.class_name;
@@ -172,9 +164,9 @@ const updateFeeStructure = async (tenant_id, fee_structure_id, data) => {
     if (data.class_name) {
        class_uuid = toClassUUID(data.campus_id, data.class_name);
     } else if (data.class_id && !isNaN(data.class_id)) {
-       const res = await client.query('SELECT class_name FROM classes WHERE class_id = $1', [data.class_id]);
-       if (res.rows.length > 0) {
-         class_uuid = toClassUUID(data.campus_id, res.rows[0].class_name);
+       const className = await classModel.getClassNameById(data.class_id);
+       if (className) {
+         class_uuid = toClassUUID(data.campus_id, className);
        }
     }
 
@@ -190,25 +182,7 @@ const updateFeeStructure = async (tenant_id, fee_structure_id, data) => {
 
     // 3. Replace Installments
     await feeModel.deleteInstallmentsByStructure(client, fee_structure_id);
-    
-    const insertInstallmentQ = `
-      INSERT INTO fee_installments (
-        fee_structure_id, installment_name, due_date, amount, penalty_amount
-      ) VALUES ($1, $2, $3, $4, COALESCE($5, 0))
-      RETURNING *
-    `;
-
-    const installmentRows = [];
-    for (const ins of data.installments || []) {
-      const row = await client.query(insertInstallmentQ, [
-        fee_structure_id,
-        ins.installment_name,
-        ins.due_date,
-        ins.amount,
-        ins.penalty_amount || 0
-      ]);
-      installmentRows.push(row.rows[0]);
-    }
+    const installmentRows = await feeModel.createInstallments(client, fee_structure_id, data.installments);
 
     await client.query('COMMIT');
     return { ...updatedStructure, installments: installmentRows };
@@ -243,8 +217,8 @@ const assignFeesForEnrollmentWithClient = async (client, { tenant_id, campus_id,
   if (class_name) {
     class_uuid = toClassUUID(campus_id, class_name);
   } else if (class_id) {
-    const res = await client.query('SELECT class_name FROM classes WHERE class_id = $1', [class_id]);
-    if (res.rows.length === 0) {
+    const className = await classModel.getClassNameById(class_id);
+    if (!className) {
       logger.warn('FEE: assignFeesForEnrollmentWithClient could not resolve class_name from class_id', {
         campus_id,
         academic_year_id,
@@ -252,7 +226,7 @@ const assignFeesForEnrollmentWithClient = async (client, { tenant_id, campus_id,
       });
       return { assigned: 0 };
     }
-    class_uuid = toClassUUID(campus_id, res.rows[0].class_name);
+    class_uuid = toClassUUID(campus_id, className);
   } else {
     logger.warn('FEE: assignFeesForEnrollmentWithClient missing both class_name and class_id', {
       campus_id,
@@ -322,13 +296,7 @@ const generateDuesForClass = async ({ tenant_id, campus_id, academic_year_id, cl
   try {
     await client.query('BEGIN');
 
-    const studentsQ = `
-      SELECT username 
-      FROM student_enrollment 
-      WHERE campus_id = $1 AND academic_year_id = $2 AND class_id = $3
-    `;
-    const studentsRes = await client.query(studentsQ, [campus_id, academic_year_id, class_id]);
-    const students = studentsRes.rows;
+    const students = await studentModel.getEnrolledUsernamesByClass(client, campus_id, academic_year_id, class_id);
 
     logger.info('FEE: generateDuesForClass service STUDENTS_LOADED', {
       tenant_id,
@@ -386,9 +354,9 @@ const getStudentFeeDues = async (tenant_id, campus_id, filters) => {
   
   // If filtering by class (integer ID), convert to UUID via class name lookup
   if (filters.class_id) {
-    const res = await pool.query('SELECT class_name FROM classes WHERE class_id = $1', [filters.class_id]);
-    if (res.rows.length > 0) {
-      newFilters.class_id = toClassUUID(campus_id, res.rows[0].class_name);
+    const className = await classModel.getClassNameById(filters.class_id);
+    if (className) {
+      newFilters.class_id = toClassUUID(campus_id, className);
     }
   }
 
@@ -405,59 +373,49 @@ const getStudentFeeDues = async (tenant_id, campus_id, filters) => {
   const dues = await feeModel.getStudentFeeDues(tenant_id, campus_id, newFilters);
 
   // Enrich with student details
-  const q = `
-    SELECT u.username, u.first_name, u.last_name, se.admission_number
-    FROM users u
-    JOIN student_enrollment se ON u.username = se.username
-    WHERE u.tenant_id = $1
-  `;
-  const studentRes = await pool.query(q, [tenant_id]);
+  const students = await studentModel.getStudentDetailsForTenant(tenant_id);
   
   const uuidMap = {};
-  studentRes.rows.forEach(s => {
+  students.forEach(s => {
     const u = toStudentUUID(s.username);
     uuidMap[u] = s;
   });
 
   return dues.map(d => {
     const s = uuidMap[d.student_id];
+    if (!s) return null;
     return {
       ...d,
-      student_name: s ? `${s.first_name} ${s.last_name}` : 'Unknown Student',
-      admission_number: s?.admission_number,
-      username: s?.username
+      student_name: `${s.first_name} ${s.last_name}`,
+      admission_number: s.admission_number,
+      username: s.username
     };
-  });
+  }).filter(d => d !== null);
 };
 
 const getAllPayments = async (tenant_id, campus_id, filters) => {
   const payments = await feeModel.getAllPayments(tenant_id, campus_id, filters);
 
   // Enrich with student details (reverse UUID lookup)
-  const q = `
-    SELECT u.username, u.first_name, u.last_name, se.admission_number
-    FROM users u
-    JOIN student_enrollment se ON u.username = se.username
-    WHERE u.tenant_id = $1
-  `;
-  const studentRes = await pool.query(q, [tenant_id]);
+  const students = await studentModel.getStudentDetailsForTenant(tenant_id);
   
   const uuidMap = {};
-  studentRes.rows.forEach(s => {
+  students.forEach(s => {
     const u = toStudentUUID(s.username);
     uuidMap[u] = s;
   });
 
   return payments.map(p => {
     const s = uuidMap[p.student_id];
+    if (!s) return null;
     return {
       ...p,
-      first_name: s?.first_name,
-      last_name: s?.last_name,
-      admission_number: s?.admission_number,
-      student_name: s ? `${s.first_name} ${s.last_name}` : 'Unknown'
+      first_name: s.first_name,
+      last_name: s.last_name,
+      admission_number: s.admission_number,
+      student_name: `${s.first_name} ${s.last_name}`
     };
-  });
+  }).filter(p => p !== null);
 };
 
 // ==================== COLLECTION LOGIC ====================

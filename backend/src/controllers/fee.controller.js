@@ -4,15 +4,8 @@ const logger = require('../utils/logger');
 // Create fee structure with installments (atomic)
 const createFeeStructure = async (req, res) => {
   try {
-    const tenant_id = req.user?.tenantId || req.tenantId;
-    const campus_id = req.user?.campusId || req.user?.campus?.campus_id;
-
-    if (!tenant_id) {
-      return res.status(400).json({ success: false, message: 'Tenant context missing' });
-    }
-    if (!campus_id) {
-      return res.status(400).json({ success: false, message: 'Campus context missing' });
-    }
+    const tenant_id = req.user?.tenantId;
+    const campus_id = req.user?.campusId;
 
     const payload = { ...req.body, campus_id };
     const result = await feeService.createFeeStructure(tenant_id, payload);
@@ -26,15 +19,8 @@ const createFeeStructure = async (req, res) => {
 // Collect a payment and allocate by oldest dues first
 const collectPayment = async (req, res) => {
   try {
-    const tenant_id = req.user?.tenantId || req.tenantId;
-    const collected_by = req.user?.userId || req.user?.user_id;
-
-    if (!tenant_id) {
-      return res.status(400).json({ success: false, message: 'Tenant context missing' });
-    }
-    if (!collected_by) {
-      return res.status(400).json({ success: false, message: 'Collector (user) context missing' });
-    }
+    const tenant_id = req.user?.tenantId;
+    const collected_by = req.user?.userId;
 
     const { student_username, student_id, total_amount_received, payment_method, remarks } = req.body || {};
 
@@ -58,15 +44,8 @@ const collectPayment = async (req, res) => {
 // Fee Types
 const createFeeType = async (req, res) => {
   try {
-    const tenant_id = req.user?.tenantId || req.tenantId;
-    const campus_id = req.user?.campusId || req.user?.campus?.campus_id;
-
-    if (!tenant_id) {
-      return res.status(400).json({ success: false, message: 'Tenant context missing' });
-    }
-    if (!campus_id) {
-      return res.status(400).json({ success: false, message: 'Campus context missing' });
-    }
+    const tenant_id = req.user?.tenantId;
+    const campus_id = req.user?.campusId;
 
     const payload = { ...req.body, campus_id };
     const result = await feeService.createFeeType(tenant_id, payload);
@@ -78,9 +57,8 @@ const createFeeType = async (req, res) => {
 
 const getFeeTypes = async (req, res) => {
   try {
-    const tenant_id = req.user?.tenantId || req.tenantId;
-    const campus_id = req.query.campus_id || req.user?.campus?.campus_id;
-    if (!campus_id) return res.status(400).json({ success: false, message: 'Campus ID required' });
+    const tenant_id = req.user?.tenantId;
+    const campus_id = req.query.campus_id;
     const result = await feeService.getFeeTypes(tenant_id, campus_id);
     return res.status(200).json({ success: true, data: result });
   } catch (err) {
@@ -90,7 +68,7 @@ const getFeeTypes = async (req, res) => {
 
 const updateFeeType = async (req, res) => {
   try {
-    const tenant_id = req.user?.tenantId || req.tenantId;
+    const tenant_id = req.user?.tenantId;
     const result = await feeService.updateFeeType(tenant_id, req.params.id, req.body);
     return res.status(200).json({ success: true, data: result });
   } catch (err) {
@@ -100,7 +78,7 @@ const updateFeeType = async (req, res) => {
 
 const deleteFeeType = async (req, res) => {
   try {
-    const tenant_id = req.user?.tenantId || req.tenantId;
+    const tenant_id = req.user?.tenantId;
     const result = await feeService.deleteFeeType(tenant_id, req.params.id);
     return res.status(200).json({ success: true, data: result });
   } catch (err) {
@@ -111,9 +89,8 @@ const deleteFeeType = async (req, res) => {
 // Fee Structures
 const getAllFeeStructures = async (req, res) => {
   try {
-    const tenant_id = req.user?.tenantId || req.tenantId;
-    const campus_id = req.query.campus_id || req.user?.campus?.campus_id;
-    if (!campus_id) return res.status(400).json({ success: false, message: 'Campus ID required' });
+    const tenant_id = req.user?.tenantId;
+    const campus_id = req.query.campus_id;
     const result = await feeService.getAllFeeStructures(tenant_id, campus_id);
     return res.status(200).json({ success: true, data: result });
   } catch (err) {
@@ -133,8 +110,8 @@ const getFeeStructureById = async (req, res) => {
 
 const updateFeeStructure = async (req, res) => {
   try {
-    const tenant_id = req.user?.tenantId || req.tenantId;
-    const campus_id = req.user?.campusId || req.user?.campus?.campus_id;
+    const tenant_id = req.user?.tenantId;
+    const campus_id = req.user?.campusId;
     
     // We need campus_id for UUID generation if class changed. 
     // The frontend sends everything in body, but better to be safe.
@@ -149,7 +126,7 @@ const updateFeeStructure = async (req, res) => {
 
 const deleteFeeStructure = async (req, res) => {
   try {
-    const tenant_id = req.user?.tenantId || req.tenantId;
+    const tenant_id = req.user?.tenantId;
     const result = await feeService.deleteFeeStructure(tenant_id, req.params.id);
     return res.status(200).json({ success: true, data: result });
   } catch (err) {
@@ -216,13 +193,13 @@ const generateDuesForClass = async (req, res) => {
 // Student Dues
 const getStudentFeeDues = async (req, res) => {
   try {
-    const tenant_id = req.user?.tenantId || req.tenantId;
-    const campus_id = req.query.campus_id || req.user?.campus?.campus_id;
-    if (!campus_id) return res.status(400).json({ success: false, message: 'Campus ID required' });
+    const tenant_id = req.user?.tenantId;
+    const campus_id = req.query.campus_id;
     
     const filters = {
       student_id: req.query.student_id,
-      class_id: req.query.class_id
+      class_id: req.query.class_id,
+      academic_year_id: req.query.academic_year_id || req.query.academicYearId
     };
     const result = await feeService.getStudentFeeDues(tenant_id, campus_id, filters);
     return res.status(200).json({ success: true, data: result });
@@ -234,7 +211,7 @@ const getStudentFeeDues = async (req, res) => {
 // Payments History
 const getAllPayments = async (req, res) => {
   try {
-    const tenant_id = req.user?.tenantId || req.tenantId;
+    const tenant_id = req.user?.tenantId;
     const campus_id = req.query.campus_id || req.user?.campus?.campus_id;
     
     const filters = {

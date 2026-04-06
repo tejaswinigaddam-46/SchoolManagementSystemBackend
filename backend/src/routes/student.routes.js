@@ -1,19 +1,19 @@
 const express = require('express');
 const router = express.Router();
 const studentController = require('../controllers/student.controller');
-const studentBulkImportController = require('../controllers/studentBulkImport.controller');
-const studentExportController = require('../controllers/studentExport.controller');
-const studentBulkUpdateController = require('../controllers/studentBulkUpdate.controller');
+const studentBulkOperationController = require('../controllers/studentBulkOperation.controller');
 const upload = require('../middleware/upload.middleware');
 const { authenticate, requirePermission } = require('../middleware/auth');
 const { PERMISSIONS } = require('../config/permissions');
-const { validateStudentRegistration, validateStudentUpdate } = require('../validators/student.validator');
+const validate = require('../middleware/validation');
+const studentBulkOperationSchema = require('../schemas/studentBulkOperation.schema');
+const studentSchema = require('../schemas/student.schema');
 
 router.get(
   '/import/template',
   authenticate,
   requirePermission(PERMISSIONS.STUDENT_IMPORT_TEMPLATE_READ),
-  studentBulkImportController.downloadTemplate
+  studentBulkOperationController.downloadTemplate
 );
 
 router.post(
@@ -21,14 +21,16 @@ router.post(
   authenticate,
   requirePermission(PERMISSIONS.STUDENT_IMPORT_CREATE),
   upload.single('file'),
-  studentBulkImportController.uploadStudents
+  validate(studentBulkOperationSchema.uploadStudents),
+  studentBulkOperationController.uploadStudents
 );
 
 router.post(
   '/export',
   authenticate,
   requirePermission(PERMISSIONS.STUDENT_EXPORT_CREATE),
-  studentExportController.exportStudents
+  validate(studentBulkOperationSchema.exportStudents),
+  studentBulkOperationController.exportStudents
 );
 
 router.post(
@@ -36,7 +38,8 @@ router.post(
   authenticate,
   requirePermission(PERMISSIONS.STUDENT_BULK_UPDATE_CREATE),
   upload.single('file'),
-  studentBulkUpdateController.bulkUpdateStudents
+  validate(studentBulkOperationSchema.updateStudents),
+  studentBulkOperationController.bulkUpdateStudents
 );
 
 /**
@@ -47,6 +50,7 @@ router.get(
   '/',
   authenticate,
   requirePermission(PERMISSIONS.STUDENT_LIST_READ),
+  validate(studentSchema.getAllStudents),
   studentController.getAllStudents
 );
 
@@ -58,6 +62,7 @@ router.get(
   '/filter-options',
   authenticate,
   requirePermission(PERMISSIONS.STUDENT_FILTER_OPTIONS_READ),
+  validate(studentSchema.getStudentFilterOptions),
   studentController.getStudentFilterOptions
 );
 
@@ -69,6 +74,7 @@ router.get(
   '/by-filters',
   authenticate,
   requirePermission(PERMISSIONS.STUDENT_BY_FILTERS_READ),
+  validate(studentSchema.getStudentsByFilters),
   studentController.getStudentsByFilters
 );
 
@@ -80,6 +86,7 @@ router.post(
   '/assign-to-section',
   authenticate,
   requirePermission(PERMISSIONS.STUDENT_ASSIGN_SECTION_CREATE),
+  validate(studentSchema.assignStudentsToSection),
   studentController.assignStudentsToSection
 );
 
@@ -91,6 +98,7 @@ router.put(
   '/:studentId/section',
   authenticate,
   requirePermission(PERMISSIONS.STUDENT_SECTION_EDIT),
+  validate(studentSchema.updateStudentSection),
   studentController.updateStudentSection
 );
 
@@ -102,6 +110,7 @@ router.delete(
   '/:studentId/section',
   authenticate,
   requirePermission(PERMISSIONS.STUDENT_SECTION_DELETE),
+  validate(studentSchema.deassignStudentSection),
   studentController.deassignStudentSection
 );
 
@@ -113,6 +122,7 @@ router.get(
   '/section/:classId/:sectionId',
   authenticate,
   requirePermission(PERMISSIONS.STUDENT_BY_SECTION_READ),
+  validate(studentSchema.getStudentsBySection),
   studentController.getStudentsBySectionController
 );
 
@@ -124,7 +134,7 @@ router.post(
   '/',
   authenticate,
   requirePermission(PERMISSIONS.STUDENT_CREATE_ROUTE_CREATE),
-  validateStudentRegistration,
+  validate(studentSchema.registerStudent),
   studentController.registerStudent
 );
 
@@ -136,6 +146,7 @@ router.get(
   '/statistics',
   authenticate,
   requirePermission(PERMISSIONS.STUDENT_STATISTICS_READ),
+  validate(studentSchema.getStudentStatistics),
   studentController.getStudentStatistics
 );
 
@@ -147,6 +158,7 @@ router.get(
   '/admission/:admissionNumber',
   authenticate,
   requirePermission(PERMISSIONS.STUDENT_BY_ADMISSION_READ),
+  validate(studentSchema.getStudentByAdmissionNumber),
   studentController.getStudentByAdmissionNumber
 );
 
@@ -158,6 +170,7 @@ router.get(
   '/username/:username',
   authenticate,
   requirePermission(PERMISSIONS.STUDENT_BY_USERNAME_READ),
+  validate(studentSchema.getStudentByUsername),
   studentController.getStudentByUsername
 );
 
@@ -169,6 +182,7 @@ router.get(
   '/username/:username/edit',
   authenticate,
   requirePermission(PERMISSIONS.STUDENT_FOR_EDIT_READ),
+  validate(studentSchema.getCompleteStudentForEdit),
   studentController.getCompleteStudentForEdit
 );
 
@@ -180,7 +194,7 @@ router.put(
   '/username/:username',
   authenticate,
   requirePermission(PERMISSIONS.STUDENT_EDIT),
-  validateStudentUpdate,
+  validate(studentSchema.updateStudent),
   studentController.updateStudent
 );
 
@@ -192,6 +206,7 @@ router.delete(
   '/username/:username',
   authenticate,
   requirePermission(PERMISSIONS.STUDENT_DELETE_ROUTE_DELETE),
+  validate(studentSchema.deleteStudent),
   studentController.deleteStudent
 );
 
@@ -203,6 +218,7 @@ router.get(
   '/username/:username/parents',
   authenticate,
   requirePermission(PERMISSIONS.STUDENT_PARENTS_READ),
+  validate(studentSchema.getStudentParents),
   studentController.getStudentParents
 );
 
@@ -214,6 +230,7 @@ router.get(
   '/parents/:parentUsername/students',
   authenticate,
   requirePermission(PERMISSIONS.STUDENT_BY_PARENT_READ),
+  validate(studentSchema.getParentStudents),
   studentController.getParentStudents
 );
 
@@ -225,6 +242,7 @@ router.post(
   '/username/:username/parents',
   authenticate,
   requirePermission(PERMISSIONS.STUDENT_PARENT_ADD_CREATE),
+  validate(studentSchema.addParentToStudent),
   studentController.addParentToStudent
 );
 
@@ -236,6 +254,7 @@ router.delete(
   '/username/:username/parents/:parentUsername',
   authenticate,
   requirePermission(PERMISSIONS.STUDENT_PARENT_REMOVE_DELETE),
+  validate(studentSchema.removeParentFromStudent),
   studentController.removeParentFromStudent
 );
 
@@ -247,6 +266,7 @@ router.put(
   '/username/:username/parents/:parentUsername',
   authenticate,
   requirePermission(PERMISSIONS.STUDENT_PARENT_RELATIONSHIP_EDIT),
+  validate(studentSchema.updateParentRelationship),
   studentController.updateParentRelationship
 );
 

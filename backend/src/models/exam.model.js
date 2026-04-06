@@ -1,7 +1,7 @@
 const { pool } = require('../config/database');
 
 const ExamModel = {
-  createExam: async (examData) => {
+  createExam: async (examData, client = pool) => {
     const {
       tenant_id,
       campus_id,
@@ -28,7 +28,8 @@ const ExamModel = {
       total_score !== undefined ? total_score : 100.00
     ];
 
-    const result = await pool.query(query, values);
+    const db = client || pool;
+    const result = await db.query(query, values);
     return result.rows[0];
   },
 
@@ -36,6 +37,24 @@ const ExamModel = {
     const query = `SELECT * FROM exams WHERE exam_id = $1`;
     const result = await pool.query(query, [examId]);
     return result.rows[0];
+  },
+
+  getExamByEventId: async (eventId) => {
+    const query = `SELECT * FROM exams WHERE event_id = $1 LIMIT 1`;
+    const result = await pool.query(query, [eventId]);
+    return result.rows[0];
+  },
+
+  getExamsByEventId: async (eventId) => {
+    const query = `SELECT * FROM exams WHERE event_id = $1 ORDER BY exam_date ASC`;
+    const result = await pool.query(query, [eventId]);
+    return result.rows;
+  },
+
+  deleteExamsByEventId: async (eventId) => {
+    const query = `DELETE FROM exams WHERE event_id = $1 RETURNING *`;
+    const result = await pool.query(query, [eventId]);
+    return result.rows;
   },
 
   getExamsByCampus: async (campusId, filters = {}) => {

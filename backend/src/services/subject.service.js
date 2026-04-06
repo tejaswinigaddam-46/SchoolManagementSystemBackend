@@ -40,25 +40,6 @@ const subjectService = {
     try {
       logger.info(`Creating subject for campus: ${campusId}`, subjectData);
       
-      // Validate required fields
-      if (!subjectData.subject_name || !subjectData.subject_name.trim()) {
-        throw new Error('Subject name is required');
-      }
-      
-      if (!subjectData.category || !subjectData.category.trim()) {
-        throw new Error('Subject category is required');
-      }
-      
-      if (!subjectData.curriculum_id) {
-        throw new Error('Curriculum is required');
-      }
-
-      // Validate category enum
-      const validCategories = ['Academic', 'Co-curricular', 'Sport'];
-      if (!validCategories.includes(subjectData.category)) {
-        throw new Error('Invalid subject category. Must be Academic, Co-curricular, or Sport');
-      }
-
       // Check if subject with same name already exists for campus and curriculum
       const exists = await subjectModel.checkSubjectExists(
         campusId, 
@@ -95,18 +76,6 @@ const subjectService = {
       const existingSubject = await subjectModel.getSubjectById(campusId, subjectId);
       if (!existingSubject) {
         throw new Error('Subject not found');
-      }
-
-      // Validate updated data if provided
-      if (subjectData.subject_name !== undefined && (!subjectData.subject_name || !subjectData.subject_name.trim())) {
-        throw new Error('Subject name cannot be empty');
-      }
-      
-      if (subjectData.category !== undefined) {
-        const validCategories = ['Academic', 'Co-curricular', 'Sport'];
-        if (!validCategories.includes(subjectData.category)) {
-          throw new Error('Invalid subject category. Must be Academic, Co-curricular, or Sport');
-        }
       }
 
       // Check for duplicates if subject name or curriculum is being updated

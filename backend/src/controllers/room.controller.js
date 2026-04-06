@@ -9,24 +9,12 @@ class RoomController {
    */
   static async getAllRooms(req, res) {
     try {
-      const { tenantId, campusId, tenant, campus } = req.user;
-      
-      if (!campusId) {
-        return errorResponse(res, 'Campus context is required', 400);
-      }
-
-      logger.info('Getting all rooms', { 
-        tenantId, 
-        campusId,
-        tenantName: tenant?.name,
-        campusName: campus?.name
-      });
+      const { campusId } = req.user;
 
       const result = await RoomService.getAllRooms(campusId);
       
       if (result.success) {
         logger.info('Successfully retrieved rooms', { 
-          tenantId, 
           campusId,
           count: result.data.length 
         });
@@ -47,19 +35,12 @@ class RoomController {
   static async getRoomById(req, res) {
     try {
       const { id } = req.params;
-      const { tenantId, campusId } = req.user;
-
-      if (!campusId) {
-        return errorResponse(res, 'Campus context is required', 400);
-      }
-
-      logger.info('Getting room by ID', { tenantId, campusId, roomId: id });
+      const { campusId } = req.user;
 
       const result = await RoomService.getRoomById(id, campusId);
       
       if (result.success) {
         logger.info('Room found by ID', { 
-          tenantId, 
           campusId,
           roomId: id,
           roomNumber: result.data.room_number 
@@ -81,19 +62,12 @@ class RoomController {
   static async getRoomsByBuilding(req, res) {
     try {
       const { buildingId } = req.params;
-      const { tenantId, campusId } = req.user;
-
-      if (!campusId) {
-        return errorResponse(res, 'Campus context is required', 400);
-      }
-
-      logger.info('Getting rooms by building', { tenantId, campusId, buildingId });
+      const { campusId } = req.user;
 
       const result = await RoomService.getRoomsByBuilding(buildingId, campusId);
       
       if (result.success) {
         logger.info('Rooms retrieved by building', { 
-          tenantId, 
           campusId,
           buildingId,
           count: result.data.length 
@@ -137,28 +111,13 @@ class RoomController {
    */
   static async createRoom(req, res) {
     try {
-      const { tenantId, campusId, tenant, campus } = req.user;
-
-      if (!campusId) {
-        return errorResponse(res, 'Campus context is required', 400);
-      }
-
-      const roomData = req.body;
-      
-      logger.info('Creating new room', { 
-        tenantId, 
-        campusId,
-        tenantName: tenant?.name,
-        campusName: campus?.name,
-        roomNumber: roomData.room_number,
-        buildingId: roomData.building_id 
-      });
+      const { campusId  } = req.user;
+      const roomData = req.body;  
 
       const result = await RoomService.createRoom(roomData, campusId);
       
       if (result.success) {
         logger.info('Room created successfully', { 
-          tenantId, 
           campusId,
           roomId: result.data.room_id,
           roomNumber: result.data.room_number 
@@ -181,16 +140,11 @@ class RoomController {
   static async updateRoom(req, res) {
     try {
       const { id } = req.params;
-      const { tenantId, campusId } = req.user;
-
-      if (!campusId) {
-        return errorResponse(res, 'Campus context is required', 400);
-      }
+      const { campusId } = req.user;
 
       const updateData = req.body;
       
       logger.info('Updating room', { 
-        tenantId, 
         campusId,
         roomId: id,
         updateFields: Object.keys(updateData) 
@@ -200,7 +154,6 @@ class RoomController {
       
       if (result.success) {
         logger.info('Room updated successfully', { 
-          tenantId, 
           campusId,
           roomId: id,
           roomNumber: result.data.room_number 
@@ -223,18 +176,11 @@ class RoomController {
   static async deleteRoom(req, res) {
     try {
       const { id } = req.params;
-      const { tenantId, campusId } = req.user;
-
-      if (!campusId) {
-        return errorResponse(res, 'Campus context is required', 400);
-      }
-
-      logger.info('Deleting room', { tenantId, campusId, roomId: id });
-
+      const {  campusId } = req.user;
       const result = await RoomService.deleteRoom(id, campusId);
       
       if (result.success) {
-        logger.info('Room deleted successfully', { tenantId, campusId, roomId: id });
+        logger.info('Room deleted successfully', {  campusId, roomId: id });
         return successResponse(res, result.message, result.data);
       } else {
         return errorResponse(res, result.message, 400);
@@ -251,18 +197,12 @@ class RoomController {
    */
   static async getRoomStats(req, res) {
     try {
-      const { tenantId, campusId } = req.user;
-
-      if (!campusId) {
-        return errorResponse(res, 'Campus context is required', 400);
-      }
-
-      logger.info('Getting room statistics', { tenantId, campusId });
+      const { campusId } = req.user;
 
       const result = await RoomService.getRoomStats(campusId);
       
       if (result.success) {
-        logger.info('Room statistics retrieved', { tenantId, campusId, statistics: result.data });
+        logger.info('Room statistics retrieved', { campusId, statistics: result.data });
         return successResponse(res, result.message, result.data);
       } else {
         return errorResponse(res, result.message, 400);

@@ -183,40 +183,10 @@ class RoomModel {
   }
 
   /**
-   * Verify building belongs to campus
-   */
-  static async verifyBuildingInCampus(buildingId, campusId) {
-    try {
-      const query = `
-        SELECT building_id 
-        FROM buildings 
-        WHERE building_id = $1 AND campus_id = $2
-      `;
-      
-      const result = await pool.query(query, [buildingId, campusId]);
-      return result.rows.length > 0;
-    } catch (error) {
-      console.error('Error in verifyBuildingInCampus:', error);
-      throw error;
-    }
-  }
-
-  /**
    * Create new room
    */
   static async createRoom(roomData) {
     try {
-      // First verify building belongs to campus
-      const buildingExists = await this.verifyBuildingInCampus(roomData.building_id, roomData.campus_id);
-      if (!buildingExists) {
-        return createResponse(false, 'Building not found in the specified campus', null);
-      }
-
-      // Check if room number already exists in this building
-      const roomExists = await this.checkRoomExists(roomData.building_id, roomData.room_number);
-      if (roomExists) {
-        return createResponse(false, 'Room with this number already exists in the building', null);
-      }
 
       const query = `
         INSERT INTO campus_rooms (building_id, campus_id, room_number, floor_number, room_type, capacity)
@@ -254,23 +224,6 @@ class RoomModel {
    */
   static async updateRoom(roomId, campusId, updateData) {
     try {
-      // Check if room exists and belongs to campus
-      const existingRoom = await this.getRoomById(roomId, campusId);
-      if (!existingRoom.success) {
-        return createResponse(false, 'Room not found', null);
-      }
-
-      // If room number is being updated, check for duplicates
-      if (updateData.room_number && updateData.room_number !== existingRoom.data.room_number) {
-        const roomExists = await this.checkRoomExists(
-          existingRoom.data.building_id, 
-          updateData.room_number, 
-          roomId
-        );
-        if (roomExists) {
-          return createResponse(false, 'Room with this number already exists in the building', null);
-        }
-      }
 
       const query = `
         UPDATE campus_rooms 
@@ -317,11 +270,6 @@ class RoomModel {
    */
   static async deleteRoom(roomId, campusId) {
     try {
-      // Check if room exists and belongs to campus
-      const existingRoom = await this.getRoomById(roomId, campusId);
-      if (!existingRoom.success) {
-        return createResponse(false, 'Room not found', null);
-      }
 
       const query = `
         DELETE FROM campus_rooms 
@@ -366,6 +314,25 @@ class RoomModel {
       return createResponse(true, 'Room statistics retrieved successfully', result.rows[0]);
     } catch (error) {
       console.error('Error in getRoomStats:', error);
+      throw error;
+    }
+  }
+
+   /**
+   * Verify building belongs to campus
+   */
+  static async verifyBuildingInCampus(buildingId, campusId) {
+    try {
+      const query = `
+        SELECT building_id 
+        FROM buildings 
+        WHERE building_id = $1 AND campus_id = $2
+      `;
+      
+      const result = await pool.query(query, [buildingId, campusId]);
+      return result.rows.length > 0;
+    } catch (error) {
+      console.error('Error in verifyBuildingInCampus:', error);
       throw error;
     }
   }

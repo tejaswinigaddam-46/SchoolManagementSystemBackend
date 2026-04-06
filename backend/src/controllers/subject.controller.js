@@ -52,19 +52,6 @@ const subjectController = {
       const { campusId } = req.params;
       const subjectData = req.body;
 
-      // Validate required fields
-      if (!subjectData.subject_name) {
-        return errorResponse(res, 'Subject name is required', 400);
-      }
-
-      if (!subjectData.category) {
-        return errorResponse(res, 'Subject category is required', 400);
-      }
-
-      if (!subjectData.curriculum_id) {
-        return errorResponse(res, 'Curriculum is required', 400);
-      }
-
       const createdSubject = await subjectService.createSubject(campusId, subjectData);
       
       return successResponse(res, 'Subject created successfully', { subject: createdSubject }, 201);
@@ -80,17 +67,6 @@ const subjectController = {
     try {
       const { campusId, subjectId } = req.params;
       const subjectData = req.body;
-
-      // Remove empty fields
-      Object.keys(subjectData).forEach(key => {
-        if (subjectData[key] === undefined || subjectData[key] === '') {
-          delete subjectData[key];
-        }
-      });
-
-      if (Object.keys(subjectData).length === 0) {
-        return errorResponse(res, 'No valid fields provided for update', 400);
-      }
 
       const updatedSubject = await subjectService.updateSubject(campusId, subjectId, subjectData);
       

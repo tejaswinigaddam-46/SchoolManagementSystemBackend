@@ -175,18 +175,12 @@ const findClassesByCampus = async (campusId, tenantId) => {
  * @returns {Promise<Object|null>} Updated class object or null
  */
 const updateClass = async (classId, updateData, tenantId) => {
-    const allowedUpdates = ['class_level', 'class_name'];
-    
     const updates = {};
     if (updateData.classLevel !== undefined) {
         updates.class_level = updateData.classLevel ? parseInt(updateData.classLevel) : null;
     }
     if (updateData.className !== undefined) {
         updates.class_name = updateData.className.trim();
-    }
-    
-    if (Object.keys(updates).length === 0) {
-        throw new Error('No valid fields to update');
     }
     
     // Build dynamic query
@@ -255,18 +249,16 @@ const deleteClass = async (classId, tenantId) => {
         // Check if class has any students enrolled
         const studentCheckQuery = `
             SELECT COUNT(*) as student_count
-            FROM student_enrollments se
-            JOIN students s ON se.student_id = s.student_id
-            WHERE se.class = $1
-            AND s.tenant_id = $2
-            AND se.status = 'active'
+            FROM student_enrollment se
+            WHERE se.class_id = $1
+              AND se.campus_id = $2
         `;
         
-        const studentCheck = await client.query(studentCheckQuery, [classToDelete.class_name, tenantId]);
+        const studentCheck = await client.query(studentCheckQuery, [classId, classToDelete.campus_id]);
         const studentCount = parseInt(studentCheck.rows[0].student_count);
         
         if (studentCount > 0) {
-            throw new Error(`Cannot delete class "${classToDelete.class_name}". There are ${studentCount} active students enrolled in this class.`);
+            throw new Error(`Cannot delete class "${classToDelete.class_name}". There are ${studentCount} students enrolled in this class.`);
         }
         
         // Delete the class (simple delete query)
@@ -373,6 +365,28 @@ const getClassByName = async (className, campusId) => {
     }
 };
 
+const getClassNamesByCampus = async (campusId) => {
+    const query = 'SELECT class_id, class_name FROM classes WHERE campus_id = $1';
+    try {
+        const result = await pool.query(query, [campusId]);
+        return result.rows;
+    } catch (error) {
+        logger.error('Error getting class names by campus:', error);
+        throw error;
+    }
+};
+
+const getClassNameById = async (classId) => {
+    const query = 'SELECT class_name FROM classes WHERE class_id = $1';
+    try {
+        const result = await pool.query(query, [classId]);
+        return result.rows[0]?.class_name || null;
+    } catch (error) {
+        logger.error('Error getting class name by ID:', error);
+        throw error;
+    }
+};
+
 module.exports = {
     createClass,
     getAllClasses,
@@ -382,5 +396,7 @@ module.exports = {
     updateClass,
     deleteClass,
     isClassNameUnique,
-    getClassStatistics
+    getClassStatistics,
+    getClassNamesByCampus,
+    getClassNameById
 };

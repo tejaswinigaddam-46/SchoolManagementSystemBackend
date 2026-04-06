@@ -4,6 +4,9 @@ const AttendanceModel = require('../models/attendance.model');
 const HolidayModel = require('../models/holiday.model');
 const WeekendPolicyModel = require('../models/weekendPolicy.model');
 const SpecialWorkingDayModel = require('../models/specialWorkingDay.model');
+const UserModel = require('../models/user.model');
+const SectionSubjectModel = require('../models/sectionSubject.model');
+const LeaveModel = require('../models/leave.model');
 
 async function getConsolidatedAttendance(campusId, roles, yearName, startDate, endDate, tenantId, classId = null, sectionId = null) {
     const client = await pool.connect();
@@ -19,56 +22,21 @@ async function getConsolidatedAttendance(campusId, roles, yearName, startDate, e
         }
 
         // 2. Fetch Users with Academic Year Context
-        let usersQuery = `
-            SELECT DISTINCT
-                u.user_id, u.username, u.first_name, u.last_name, u.role,
-                se.academic_year_id as student_ay_id
-            FROM users u
-            JOIN user_statuses us ON u.username = us.username
-            LEFT JOIN student_enrollment se ON u.username = se.username
-            LEFT JOIN classes c ON se.class_id = c.class_id
-            LEFT JOIN academic_years ay ON se.academic_year_id = ay.academic_year_id
-            WHERE u.tenant_id = $1 AND us.campus_id = $2 AND us.status = 'active'
-            AND u.role = ANY($3)
-        `;
-        
-        const queryParams = [tenantId, campusId, roles];
-        let pIdx = 4;
-        
-        if (yearName) {
-             usersQuery += ` AND (u.role != 'Student' OR ay.year_name = $${pIdx})`;
-             queryParams.push(yearName);
-             pIdx++;
-        }
-        
-        if (classId) {
-            usersQuery += ` AND (u.role != 'Student' OR c.class_id = $${pIdx})`;
-            queryParams.push(classId);
-            pIdx++;
-        }
-
-        if (sectionId) {
-            usersQuery += ` AND (u.role != 'Student' OR se.section_id = $${pIdx})`;
-            queryParams.push(sectionId);
-            pIdx++;
-        }
-        
-        const usersRes = await client.query(usersQuery, queryParams);
-        let users = usersRes.rows;
+        const users = await UserModel.getActiveUsersWithAcademicFilters(
+            tenantId,
+            campusId,
+            roles,
+            { yearName, classId, sectionId },
+            client
+        );
 
         // If Teachers are involved, fetch their academic years from subjects
         const teacherIds = users.filter(u => u.role === 'Teacher').map(u => u.user_id);
         const teacherAyMap = new Map();
         
         if (teacherIds.length > 0) {
-            const teacherAyQuery = `
-                SELECT DISTINCT ss.teacher_user_id, cs.academic_year_id
-                FROM section_subjects ss
-                JOIN class_sections cs ON ss.section_id = cs.section_id
-                WHERE ss.teacher_user_id = ANY($1)
-            `;
-            const tRes = await client.query(teacherAyQuery, [teacherIds]);
-            tRes.rows.forEach(row => {
+            const rows = await SectionSubjectModel.getTeacherAcademicYears(teacherIds, client);
+            rows.forEach(row => {
                 if (!teacherAyMap.has(row.teacher_user_id)) {
                     teacherAyMap.set(row.teacher_user_id, new Set());
                 }
@@ -92,23 +60,16 @@ async function getConsolidatedAttendance(campusId, roles, yearName, startDate, e
         });
 
         // 4. Fetch Existing Attendance
-        const attRes = await client.query(`
-            SELECT username, TO_CHAR(attendance_date, 'YYYY-MM-DD') as attendance_date_str, status, 
-            TO_CHAR(duration, 'HH24:MI') as duration, 
-            TO_CHAR(total_duration, 'HH24:MI') as total_duration, 
-            login_time, logout_time
-            FROM user_attendance
-            WHERE campus_id = $1 AND attendance_date BETWEEN $2::date AND $3::date
-        `, [campusId, startDate, endDate]);
+        const attRows = await AttendanceModel.getUserAttendanceByCampusAndDateRange(campusId, startDate, endDate, client);
         
         const attMap = new Map();
-        attRes.rows.forEach(r => {
+        attRows.forEach(r => {
             const d = r.attendance_date_str;
             attMap.set(`${r.username}_${d}`, r);
         });
 
         logger.info('DEBUG: Attendance Map Stats', {
-            totalRecords: attRes.rowCount,
+            totalRecords: attRows.length,
             sampleKey: attMap.size > 0 ? Array.from(attMap.keys())[0] : 'None',
             queryRange: { startDate, endDate }
         });
@@ -123,17 +84,9 @@ async function getConsolidatedAttendance(campusId, roles, yearName, startDate, e
         const leaveStatsMap = new Map();
         
         if (usernames.length > 0) {
-            const leaveQuery = `
-                SELECT username,
-                       COUNT(*) FILTER (WHERE overall_status = 'pending') as pending_count,
-                       COUNT(*) FILTER (WHERE overall_status = 'approved' AND leave_date BETWEEN $2::date AND $3::date) as approved_count
-                FROM leave_requests
-                WHERE username = ANY($1)
-                GROUP BY username
-            `;
             try {
-                const leaveRes = await client.query(leaveQuery, [usernames, startDate, endDate]);
-                leaveRes.rows.forEach(r => {
+                const rows = await LeaveModel.getLeaveStatsByUsernamesAndDateRange(usernames, startDate, endDate, client);
+                rows.forEach(r => {
                     leaveStatsMap.set(r.username, {
                         pending: parseInt(r.pending_count || 0),
                         approved: parseInt(r.approved_count || 0)
@@ -191,11 +144,6 @@ async function getConsolidatedAttendance(campusId, roles, yearName, startDate, e
              if (role === 'Student' || role === 'Teacher') {
                  if (applicableAyIds.length === 0) {
                      // No AY context -> Check any policy matching the day
-                     const matchingPolicies = policies.filter(p => {
-                         if (dayOfWeek === 0 && p.is_sunday_holiday) return true;
-                         if (dayOfWeek === 6 && p.is_saturday_holiday && !p.is_saturday_half_day) return true;
-                         return false;
-                     });
                      // If ALL policies say it's a holiday, it's a holiday? Or if ANY?
                      // Original logic: "checkWeekendAny" -> returns true if ANY policy says it's a holiday.
                      // But wait, if one policy says Saturday is holiday, and another says it's half day... 

@@ -1,6 +1,49 @@
 const { pool } = require('../config/database');
 const UserModel = require('./user.model');
 
+const getAcademicYearNameById = async (client, academicYearId) => {
+    if (!academicYearId) return null;
+    const res = await client.query(
+        'SELECT year_name FROM academic_years WHERE academic_year_id = $1',
+        [academicYearId]
+    );
+    return res.rows?.[0]?.year_name || null;
+};
+
+const getUsersByIds = async (client, userIds) => {
+    if (!Array.isArray(userIds) || userIds.length === 0) return [];
+    const res = await client.query(
+        'SELECT user_id, username, role FROM users WHERE user_id = ANY($1::bigint[])',
+        [userIds]
+    );
+    return res.rows || [];
+};
+
+const getDailyAggregatesForUsers = async (client, attendanceDate, userIds) => {
+    if (!Array.isArray(userIds) || userIds.length === 0) return [];
+    const res = await client.query(
+        `WITH day_events AS (
+            SELECT event_id,
+                   (start_date + start_time) AS start_ts,
+                   (end_date + end_time) AS end_ts
+            FROM calendar_events
+            WHERE start_date = $1
+        ),
+        agg AS (
+            SELECT a.audience_id AS user_id,
+                   SUM(EXTRACT(EPOCH FROM (e.end_ts - e.start_ts)) / 60.0) AS total_sched_minutes,
+                   SUM(a.actual_present_hours * 60.0) AS total_actual_minutes
+            FROM event_attendance a
+            JOIN day_events e ON e.event_id = a.event_id
+            WHERE a.audience_id = ANY($2::bigint[])
+            GROUP BY a.audience_id
+        )
+        SELECT user_id, total_sched_minutes, total_actual_minutes FROM agg`,
+        [attendanceDate, userIds]
+    );
+    return res.rows || [];
+};
+
 /**
  * Get attendance records for a specific event
  * @param {string} eventId 
@@ -30,9 +73,9 @@ const getAttendanceByEventId = async (eventId) => {
 /**
  * Upsert attendance record (Insert or Update)
  * @param {Object} client - Database client for transaction
- * @param {Object} data - { eventId, studentId, status, actualPresentHours, totalScheduledHours, attendanceDate, academicYearId, yearName }
+ * @param {Object} data - { eventId, studentId, status, actualPresentHours, totalScheduledHours, attendanceDate, academicYearId }
  */
-const upsertAttendance = async (client, { eventId, studentId, status, actualPresentHours, totalScheduledHours, attendanceDate, academicYearId, yearName }) => {
+const upsertAttendance = async (client, { eventId, studentId, status, actualPresentHours, totalScheduledHours, attendanceDate, academicYearId }) => {
     const query = `
         insert into event_attendance (
             event_id, audience_id, attendance_status, 
@@ -58,83 +101,22 @@ const upsertAttendance = async (client, { eventId, studentId, status, actualPres
         attendanceDate,
         academicYearId || null
     ]);
+};
 
-    // Sync to user_attendance for Students
-    try {
-        // 1. Get User Info
-        const userQuery = `SELECT username, role FROM users WHERE user_id = $1`;
-        const userRes = await client.query(userQuery, [studentId]);
-        
-        if (userRes.rows.length > 0) {
-            const { username, role } = userRes.rows[0];
-
-            // Only proceed for Students (or as requested "For role of student")
-            if (role === 'Student') {
-                // 2. Get Campus ID from Event
-                const eventQuery = `SELECT campus_id FROM calendar_events WHERE event_id = $1`;
-                const eventRes = await client.query(eventQuery, [eventId]);
-                const campusId = eventRes.rows[0]?.campus_id;
-
-                if (campusId) {
-                    // 3. Calculate Aggregates
-                    const aggQuery = `
-                        SELECT 
-                            COALESCE(SUM(actual_present_hours), 0) as total_actual,
-                            COALESCE(SUM(total_scheduled_hours), 0) as total_scheduled
-                        FROM event_attendance
-                        WHERE audience_id = $1 AND attendance_date = $2
-                    `;
-                    const aggRes = await client.query(aggQuery, [studentId, attendanceDate]);
-                    const { total_actual, total_scheduled } = aggRes.rows[0];
-                    
-                    const durationVal = parseFloat(total_actual);
-                    const totalDurationVal = parseFloat(total_scheduled);
-
-                    // 4. Determine Status
-                    // Status is Present if duration/total_duration >= 0.5 else Absent
-                    let userStatus = 'Absent';
-                    if (totalDurationVal > 0 && (durationVal / totalDurationVal) >= 0.5) {
-                        userStatus = 'Present';
-                    }
-
-                    // 5. Upsert user_attendance
-                    // Ensure yearName is available
-                    let resolvedYearName = yearName;
-
-                    // STRICT REQUIREMENT: For students, ALWAYS fetch year_name from academic_years using academic_year_id
-                    // to ensure data consistency, ignoring any passed yearName if possible.
-                    if (role === 'Student' && academicYearId) {
-                         const yrRes = await client.query('SELECT year_name FROM academic_years WHERE academic_year_id = $1', [academicYearId]);
-                         if (yrRes.rows.length > 0) {
-                             resolvedYearName = yrRes.rows[0].year_name;
-                         }
-                    } else if (!resolvedYearName && academicYearId) {
-                         // Fallback for non-students or if academicYearId was missing
-                         const yrRes = await client.query('SELECT year_name FROM academic_years WHERE academic_year_id = $1', [academicYearId]);
-                         resolvedYearName = yrRes.rows?.[0]?.year_name;
-                    }
-
-                    await UserModel.upsertSingleUserAttendance(client, {
-                        campusId,
-                        yearName: resolvedYearName, // Use resolved yearName
-                        username,
-                        role,
-                        attendanceDate,
-                        status: userStatus,
-                        duration: `${durationVal} hours`,
-                        totalDuration: `${totalDurationVal} hours`
-                    });
-                }
-            }
-        }
-    } catch (error) {
-        // Log error but allow transaction to proceed? 
-        // Or throw to rollback? 
-        // Since this is a required sync, we should probably throw.
-        // But let's add a context to the error
-        console.error('Error syncing user_attendance:', error);
-        throw error; 
+const upsertAttendanceBatch = async (client, { eventId, attendanceDate, academicYearId, records }) => {
+    if (!Array.isArray(records) || records.length === 0) return 0;
+    for (const record of records) {
+        await upsertAttendance(client, {
+            eventId,
+            studentId: record.studentId,
+            status: record.status,
+            actualPresentHours: record.actual_present_hours,
+            totalScheduledHours: record.total_scheduled_hours,
+            attendanceDate,
+            academicYearId
+        });
     }
+    return records.length;
 };
 
 /**
@@ -292,8 +274,24 @@ const syncStudentAttendanceInRange = async (client, campusId, startDate, endDate
 };
 
 module.exports = {
+    getAcademicYearNameById,
+    getUsersByIds,
+    getDailyAggregatesForUsers,
     getAttendanceByEventId,
     upsertAttendance,
+    upsertAttendanceBatch,
     deleteAttendance,
-    syncStudentAttendanceInRange
+    syncStudentAttendanceInRange,
+    async getUserAttendanceByCampusAndDateRange(campusId, startDate, endDate, client = pool) {
+        const query = `
+            SELECT username, TO_CHAR(attendance_date, 'YYYY-MM-DD') as attendance_date_str, status, 
+                   TO_CHAR(duration, 'HH24:MI') as duration, 
+                   TO_CHAR(total_duration, 'HH24:MI') as total_duration, 
+                   login_time, logout_time
+            FROM user_attendance
+            WHERE campus_id = $1 AND attendance_date BETWEEN $2::date AND $3::date
+        `;
+        const res = await client.query(query, [campusId, startDate, endDate]);
+        return res.rows;
+    }
 };

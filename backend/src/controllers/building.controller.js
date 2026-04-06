@@ -9,14 +9,6 @@ const buildingService = require('../services/building.service');
 const getAllBuildings = async (req, res) => {
     try {
         const campusId = req.user.campusId;
-        
-        // Enhanced campus ID validation
-        if (!campusId || campusId.trim() === '' || campusId === 'undefined' || campusId === null) {
-            return res.status(400).json({
-                success: false,
-                message: 'Valid campus ID is required'
-            });
-        }
 
         const buildings = await buildingService.getAllBuildings(campusId);
         
@@ -45,21 +37,6 @@ const createBuilding = async (req, res) => {
         
         // Use campus ID from authenticated user context
         const campusId = req.user.campusId;
-        
-        if (!campusId || campusId.trim() === '' || campusId === 'undefined' || campusId === null) {
-            return res.status(400).json({
-                success: false,
-                message: 'Valid campus ID is required'
-            });
-        }
-        
-        // Validate required fields
-        if (!building_name || number_of_floors === undefined || number_of_floors === null) {
-            return res.status(400).json({
-                success: false,
-                message: 'Building name and number of floors are required'
-            });
-        }
 
         const result = await buildingService.createBuilding({
             building_name,
@@ -77,13 +54,8 @@ const createBuilding = async (req, res) => {
         });
     } catch (error) {
         console.error('Error in createBuilding controller:', error);
-        
-        // Handle specific validation errors
-        if (error.message === 'Building name and number of floors are required' || 
-            error.message === 'Building name must be a non-empty string' || 
-            error.message === 'Building name must be 100 characters or less' ||
-            error.message === 'Number of floors must be between 1 and 200' ||
-            error.message === 'A building with this name already exists in the campus') {
+
+        if (error.message === 'A building with this name already exists in the campus') {
             return res.status(400).json({
                 success: false,
                 message: error.message
@@ -105,32 +77,8 @@ const updateBuilding = async (req, res) => {
     try {
         const { id } = req.params;
         const campusId = req.user.campusId;
-        
-        // Enhanced campus ID validation
-        if (!campusId || campusId.trim() === '' || campusId === 'undefined' || campusId === null) {
-            return res.status(400).json({
-                success: false,
-                message: 'Valid campus ID is required'
-            });
-        }
-
-        // Enhanced building ID validation
-        if (!id || id.trim() === '' || id === 'undefined' || id === null) {
-            return res.status(400).json({
-                success: false,
-                message: 'Valid building ID is required'
-            });
-        }
 
         const { building_name, number_of_floors } = req.body;
-        
-        // Validate required fields
-        if (!building_name || number_of_floors === undefined || number_of_floors === null) {
-            return res.status(400).json({
-                success: false,
-                message: 'Building name and number of floors are required'
-            });
-        }
 
         const result = await buildingService.updateBuilding(id, {
             building_name,
@@ -148,7 +96,6 @@ const updateBuilding = async (req, res) => {
     } catch (error) {
         console.error('Error in updateBuilding controller:', error);
         
-        // Handle specific validation errors
         if (error.message === 'Building not found') {
             return res.status(404).json({
                 success: false,
@@ -156,11 +103,7 @@ const updateBuilding = async (req, res) => {
             });
         }
         
-        if (error.message === 'Building name and number of floors are required' || 
-            error.message === 'Building name must be a non-empty string' || 
-            error.message === 'Building name must be 100 characters or less' ||
-            error.message === 'Number of floors must be between 1 and 200' ||
-            error.message === 'A building with this name already exists in the campus') {
+        if (error.message === 'A building with this name already exists in the campus') {
             return res.status(400).json({
                 success: false,
                 message: error.message
@@ -182,22 +125,6 @@ const deleteBuilding = async (req, res) => {
     try {
         const { id } = req.params;
         const campusId = req.user.campusId;
-        
-        // Enhanced campus ID validation
-        if (!campusId || campusId.trim() === '' || campusId === 'undefined' || campusId === null) {
-            return res.status(400).json({
-                success: false,
-                message: 'Valid campus ID is required'
-            });
-        }
-
-        // Enhanced building ID validation
-        if (!id || id.trim() === '' || id === 'undefined' || id === null) {
-            return res.status(400).json({
-                success: false,
-                message: 'Valid building ID is required'
-            });
-        }
 
         const result = await buildingService.deleteBuilding(id, campusId);
         
@@ -234,22 +161,6 @@ const getBuildingById = async (req, res) => {
     try {
         const { id } = req.params;
         const campusId = req.user.campusId;
-        
-        // Enhanced campus ID validation
-        if (!campusId || campusId.trim() === '' || campusId === 'undefined' || campusId === null) {
-            return res.status(400).json({
-                success: false,
-                message: 'Valid campus ID is required'
-            });
-        }
-
-        // Enhanced building ID validation
-        if (!id || id.trim() === '' || id === 'undefined' || id === null) {
-            return res.status(400).json({
-                success: false,
-                message: 'Valid building ID is required'
-            });
-        }
 
         const building = await buildingService.getBuildingById(id, campusId);
         

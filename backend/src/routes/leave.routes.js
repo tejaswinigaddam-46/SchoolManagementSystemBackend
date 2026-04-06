@@ -3,12 +3,15 @@ const router = express.Router();
 const leaveController = require('../controllers/leave.controller');
 const { authenticate, requirePermission } = require('../middleware/auth');
 const { PERMISSIONS } = require('../config/permissions');
+const validate = require('../middleware/validation');
+const leaveSchema = require('../schemas/leave.schema');
 
 // Create leave request (any authenticated user)
 router.post(
   '/',
   authenticate,
   requirePermission(PERMISSIONS.LEAVE_CREATE),
+  validate(leaveSchema.createLeave),
   leaveController.createLeave
 );
 
@@ -17,6 +20,7 @@ router.get(
   '/my',
   authenticate,
   requirePermission(PERMISSIONS.LEAVE_MY_LIST_READ),
+  validate(leaveSchema.getMyLeaves),
   leaveController.getMyLeaves
 );
 
@@ -25,6 +29,7 @@ router.get(
   '/pending',
   authenticate,
   requirePermission(PERMISSIONS.LEAVE_PENDING_LIST_READ),
+  validate(leaveSchema.getPendingApprovals),
   leaveController.getPendingApprovals
 );
 
@@ -33,6 +38,7 @@ router.get(
   '/history',
   authenticate,
   requirePermission(PERMISSIONS.LEAVE_HISTORY_LIST_READ),
+  validate(leaveSchema.getCompletedApprovals),
   leaveController.getCompletedApprovals
 );
 
@@ -41,6 +47,7 @@ router.patch(
   '/:id/status',
   authenticate,
   requirePermission(PERMISSIONS.LEAVE_STATUS_EDIT),
+  validate(leaveSchema.updateStatus),
   leaveController.updateStatus
 );
 
@@ -48,6 +55,7 @@ router.delete(
   '/:id',
   authenticate,
   requirePermission(PERMISSIONS.LEAVE_DELETE_ROUTE_DELETE),
+  validate(leaveSchema.deleteLeave),
   leaveController.deleteLeave
 );
 
@@ -56,6 +64,7 @@ router.patch(
   '/:id/cancel',
   authenticate,
   requirePermission(PERMISSIONS.LEAVE_CANCEL_EDIT),
+  validate(leaveSchema.cancelLeave),
   leaveController.cancelLeave
 );
 

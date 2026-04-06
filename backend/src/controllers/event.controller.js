@@ -16,10 +16,6 @@ const updateEventController = async (req, res) => {
     const { id } = req.params;
     const { mode, instanceDate } = req.query; // mode: single, all. instanceDate: YYYY-MM-DD
     const { tenantId, campusId, userId } = req.user;
-    
-    if (mode === 'single' && !instanceDate) {
-        return res.status(400).json({ success: false, message: 'instanceDate is required for single update mode' });
-    }
 
     console.log('Update Event Request Body:', JSON.stringify(req.body, null, 2));
     console.log('Update Event Query:', req.query);
@@ -37,10 +33,6 @@ const deleteEventController = async (req, res) => {
     const { id } = req.params;
     const { mode, instanceDate } = req.query;
     const { userId } = req.user;
-
-    if (mode === 'single' && !instanceDate) {
-        return res.status(400).json({ success: false, message: 'instanceDate is required for single delete mode' });
-    }
 
     const result = await EventService.deleteEvent(id, mode, instanceDate, userId);
     res.status(200).json({ success: true, data: result });

@@ -345,14 +345,6 @@ const verifyToken = async (token) => {
         parameters: { hasToken: !!token }
     });
     
-    if (!token) {
-        logger.error('Token is required in verifyToken', {
-            method: 'verifyToken',
-            error: 'Token is required'
-        });
-        throw new Error('Token is required');
-    }
-    
     try {
         const decoded = jwt.verify(
             token, 
@@ -422,46 +414,6 @@ const changeUserPassword = async (username, passwordData, tenantId) => {
     
     const { currentPassword, newPassword } = passwordData;
     
-    if (!username) {
-        logger.error('Username is required in changeUserPassword', {
-            method: 'changeUserPassword',
-            error: 'Username is required'
-        });
-        throw new Error('Username is required');
-    }
-    
-    if (!tenantId) {
-        logger.error('Tenant ID is required in changeUserPassword', {
-            method: 'changeUserPassword',
-            error: 'Tenant ID is required'
-        });
-        throw new Error('Tenant ID is required');
-    }
-    
-    if (!currentPassword) {
-        logger.error('Current password is required in changeUserPassword', {
-            method: 'changeUserPassword',
-            error: 'Current password is required'
-        });
-        throw new Error('Current password is required');
-    }
-    
-    if (!newPassword) {
-        logger.error('New password is required in changeUserPassword', {
-            method: 'changeUserPassword',
-            error: 'New password is required'
-        });
-        throw new Error('New password is required');
-    }
-    
-    if (newPassword.length < 8) {
-        logger.error('New password must be at least 8 characters long in changeUserPassword', {
-            method: 'changeUserPassword',
-            error: 'New password must be at least 8 characters long'
-        });
-        throw new Error('New password must be at least 8 characters long');
-    }
-    
     try {
     
     // Verify user still exists
@@ -520,10 +472,6 @@ const resolveTenantsByMobile = async (mobileNumber) => {
         method: 'resolveTenantsByMobile',
         parameters: { mobileNumber }
     });
-    
-    if (!mobileNumber) {
-        throw new Error('Mobile number is required');
-    }
     
     try {
         const results = await userModel.findTenantsAndUsersByMobile(mobileNumber);

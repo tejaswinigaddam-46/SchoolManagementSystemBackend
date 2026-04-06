@@ -26,94 +26,7 @@ const tenantModel = require('../models/tenant.model');
 const registerTenant = async (registrationData) => {
     const { tenantName, subdomain, tenantPhone, yearFounded, logoUrl, websiteUrl, adminFirstName, adminMiddleName, adminLastName, adminPhone, adminDOB,
         campusName, campusAddress, campusPhone, campusEmail, campusYearEstablished, campusNoOfFloors } = registrationData;
-    
-    // Validate input data
-    if (!tenantName?.trim()) {
-        throw new Error('Tenant name is required');
-    }
-    
-    if (!subdomain?.trim()) {
-        throw new Error('Subdomain is required');
-    }
-    
-    if (!adminFirstName?.trim()) {
-        throw new Error('Admin first name is required');
-    }
-    
-    if (!adminLastName?.trim()) {
-        throw new Error('Admin Last name is required');
-    }
 
-    if (!adminPhone?.trim()) {
-        throw new Error('Admin phone number is required');
-    }
-    
-    if (!tenantPhone?.trim()) {
-        throw new Error('School phone number is required');
-    }
-
-    if(!adminDOB?.trim()) { 
-        throw new Error ('Admin Date of birth is required');
-    }
-
-    // validate DOB should be > 18 years
-
-    
-    // Validate mandatory fields - Year Founded
-    if (!yearFounded) {
-        throw new Error('Year founded is required');
-    }
-    
-    const currentYear = new Date().getFullYear();
-    const yearNum = parseInt(yearFounded);
-    if (isNaN(yearNum) || yearNum < 1800 || yearNum > currentYear) {
-        throw new Error(`Year founded must be a valid year between 1800 and ${currentYear}`);
-    }
-
-    // Validate mandatory fields - Logo URL
-    if (!logoUrl?.trim()) {
-        throw new Error('Logo URL is required');
-    }
-    
-    const logoUrlRegex = /^https?:\/\/.+\.(jpg|jpeg|png|gif|svg|webp)(\?.*)?$/i;
-    if (!logoUrlRegex.test(logoUrl.trim())) {
-        throw new Error('Logo URL must be a valid image URL (jpg, jpeg, png, gif, svg, webp)');
-    }
-
-    // Validate mandatory fields - Website URL
-    if (!websiteUrl?.trim()) {
-        throw new Error('Website URL is required');
-    }
-    
-    const websiteUrlRegex = /^https?:\/\/.+\..+/;
-    if (!websiteUrlRegex.test(websiteUrl.trim())) {
-        throw new Error('Website URL must be a valid URL starting with http:// or https://');
-    }
-    
-    
-    // Validate admin phone number format (Indian format with country code)
-    const phoneRegex = /^(\+91|91)?[6789]\d{9}$/;
-    if (!phoneRegex.test(adminPhone.replace(/[\s-]/g, ''))) {
-        throw new Error('Invalid admin phone number format. Must be a valid Indian mobile number (e.g., +91 9876543210 or 9876543210)');
-    }
-    
-    // Validate tenant phone number format (Indian format, can be landline or mobile)
-    const tenantPhoneRegex = /^(\+91|91)?[0-9]{10,11}$/;
-    if (!tenantPhoneRegex.test(tenantPhone.replace(/[\s-]/g, ''))) {
-        throw new Error('Invalid school phone number format. Must be a valid Indian phone number (e.g., +91 9876543210 or 011-12345678)');
-    }
-
-    // Validate campus fields
-    if (!campusName?.trim()) throw new Error('Main campus name is required');
-    if (!campusAddress?.trim()) throw new Error('Main campus address is required');
-    if (!campusNoOfFloors || isNaN(parseInt(campusNoOfFloors)) || parseInt(campusNoOfFloors) < 1) throw new Error('Number of floors must be > 0');
-    if (campusPhone && !/^([+]?\d{1,3}[\s-]?)?\d{10,11}$/.test(campusPhone.replace(/[\s-]/g, ''))) throw new Error('Invalid campus phone number format');
-    if (campusEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(campusEmail)) throw new Error('Invalid campus email format');
-    if (campusYearEstablished) {
-        const yearNum = parseInt(campusYearEstablished);
-        if (isNaN(yearNum) || yearNum < 1800 || yearNum > currentYear) throw new Error(`Campus year established must be between 1800 and ${currentYear}`);
-    }
-    
     // Check if subdomain already exists
     const subdomainExists = await tenantModel.checkSubdomainExists(subdomain.toLowerCase());
     if (subdomainExists) {
@@ -130,7 +43,7 @@ const registerTenant = async (registrationData) => {
         tenantName: tenantName.trim(),
         subdomain: subdomain.toLowerCase().trim(),
         tenantPhone: normalizedTenantPhone,
-        yearFounded: yearNum,
+        yearFounded: yearFounded,
         logoUrl: logoUrl.trim(),
         websiteUrl: websiteUrl.trim(),
         adminFirstName: adminFirstName.trim(),
@@ -173,10 +86,6 @@ const registerTenant = async (registrationData) => {
  * @throws {Error} If database operation fails
  */
 const getTenantBySubdomain = async (subdomain) => {
-    if (!subdomain?.trim()) {
-        throw new Error('Subdomain is required');
-    }
-    
     return await tenantModel.findTenantBySubdomain(subdomain.toLowerCase().trim());
 };
 
@@ -186,11 +95,7 @@ const getTenantBySubdomain = async (subdomain) => {
  * @returns {Promise<Object|null>} Tenant object or null if not found
  * @throws {Error} If database operation fails
  */
-const getTenantById = async (tenantId) => {
-    if (!tenantId?.trim()) {
-        throw new Error('Tenant ID is required');
-    }
-    
+const getTenantById = async (tenantId) => {    
     return await tenantModel.findTenantById(tenantId);
 };
 
@@ -211,31 +116,6 @@ const getAllTenants = async () => {
  * @throws {Error} If validation fails or database operation fails
  */
 const updateTenant = async (tenantId, updateData) => {
-    if (!tenantId?.trim()) {
-        throw new Error('Tenant ID is required');
-    }
-    
-    // Validate input data
-    if (updateData.tenant_name !== undefined && !updateData.tenant_name?.trim()) {
-        throw new Error('Tenant name cannot be empty');
-    }
-    
-    if (updateData.year_founded !== undefined) {
-        const currentYear = new Date().getFullYear();
-        if (typeof updateData.year_founded !== 'number' || 
-            updateData.year_founded < 1800 || 
-            updateData.year_founded > currentYear) {
-            throw new Error(`Year founded must be a number between 1800 and ${currentYear}`);
-        }
-    }
-    
-    if (updateData.website !== undefined && updateData.website?.trim()) {
-        const urlRegex = /^https?:\/\/.+/;
-        if (!urlRegex.test(updateData.website)) {
-            throw new Error('Website must be a valid URL starting with http:// or https://');
-        }
-    }
-    
     // Check if tenant exists
     const existingTenant = await tenantModel.findTenantById(tenantId);
     if (!existingTenant) {
@@ -262,10 +142,6 @@ const updateTenant = async (tenantId, updateData) => {
  * @throws {Error} If validation fails or database operation fails
  */
 const getTenantStatistics = async (tenantId) => {
-    if (!tenantId?.trim()) {
-        throw new Error('Tenant ID is required');
-    }
-    
     // Check if tenant exists
     const tenant = await tenantModel.findTenantById(tenantId);
     if (!tenant) {
@@ -291,11 +167,7 @@ const getTenantStatistics = async (tenantId) => {
  * @returns {Promise<Object>} Availability status
  * @throws {Error} If validation fails or database operation fails
  */
-const checkSubdomainAvailability = async (subdomain) => {
-    if (!subdomain?.trim()) {
-        throw new Error('Subdomain is required');
-    }
-    
+const checkSubdomainAvailability = async (subdomain) => {    
     // Validate subdomain format
     const subdomainRegex = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/;
     if (!subdomainRegex.test(subdomain.toLowerCase())) {
@@ -320,10 +192,6 @@ const checkSubdomainAvailability = async (subdomain) => {
  * @throws {Error} If validation fails or database operation fails
  */
 const checkEmailAvailability = async (email) => {
-    if (!email?.trim()) {
-        throw new Error('Email is required');
-    }
-    
     // Validate email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {

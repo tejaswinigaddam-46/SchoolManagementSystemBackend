@@ -42,14 +42,6 @@ const getAllClasses = async (req, res) => {
             }))
         };
         
-        logger.info('Successfully retrieved classes', { 
-            tenantId, 
-            campusId,
-            tenantName: tenant?.name,
-            campusName: campus?.name,
-            count: transformedResult.classes.length,
-            total: transformedResult.pagination.total_count 
-        });
         
         return successResponse(res, 'Classes retrieved successfully', transformedResult);
         
@@ -90,13 +82,8 @@ const createClass = async (req, res) => {
         
     } catch (error) {
         logger.error('Error creating class:', error);
-        
-        if (error.message.includes('already exists') || 
-            error.message.includes('unique') ||
-            error.message.includes('required') ||
-            error.message.includes('Invalid') ||
-            error.message.includes('must be') ||
-            error.message.includes('cannot be')) {
+
+        if (error.message.includes('already exists') || error.message.includes('unique')) {
             return errorResponse(res, error.message, 400);
         }
         
@@ -113,10 +100,6 @@ const getClassById = async (req, res) => {
     try {
         const tenantId = req.user.tenantId;
         const classId = parseInt(req.params.classId);
-        
-        if (!classId || isNaN(classId)) {
-            return errorResponse(res, 'Invalid class ID', 400);
-        }
         
         logger.info('Getting class by ID', { tenantId, classId });
         
@@ -136,11 +119,6 @@ const getClassById = async (req, res) => {
         
     } catch (error) {
         logger.error('Error getting class by ID:', error);
-        
-        if (error.message.includes('required')) {
-            return errorResponse(res, error.message, 400);
-        }
-        
         return errorResponse(res, 'Failed to get class', 500);
     }
 };
@@ -154,10 +132,6 @@ const getClassesByCampus = async (req, res) => {
     try {
         const tenantId = req.user.tenantId;
         const { campusId } = req.params;
-        
-        if (!campusId?.trim()) {
-            return errorResponse(res, 'Campus ID is required', 400);
-        }
         
         logger.info('Getting classes by campus', { 
             tenantId, 
@@ -176,11 +150,6 @@ const getClassesByCampus = async (req, res) => {
         
     } catch (error) {
         logger.error('Error getting classes by campus:', error);
-        
-        if (error.message.includes('required')) {
-            return errorResponse(res, error.message, 400);
-        }
-        
         return errorResponse(res, 'Failed to get classes', 500);
     }
 };
@@ -195,10 +164,6 @@ const updateClass = async (req, res) => {
         const tenantId = req.user.tenantId;
         const classId = parseInt(req.params.classId);
         const updateData = req.body;
-        
-        if (!classId || isNaN(classId)) {
-            return errorResponse(res, 'Invalid class ID', 400);
-        }
         
         logger.info('Updating class', { 
             tenantId, 
@@ -228,10 +193,7 @@ const updateClass = async (req, res) => {
         }
         
         if (error.message.includes('already exists') ||
-            error.message.includes('required') ||
-            error.message.includes('Invalid') ||
-            error.message.includes('cannot be') ||
-            error.message.includes('must be')) {
+            error.message.includes('unique')) {
             return errorResponse(res, error.message, 400);
         }
         
@@ -250,10 +212,6 @@ const deleteClass = async (req, res) => {
     try {
         const tenantId = req.user.tenantId;
         const classId = parseInt(req.params.classId);
-        
-        if (!classId || isNaN(classId)) {
-            return errorResponse(res, 'Invalid class ID', 400);
-        }
         
         logger.info('Deleting class', { tenantId, classId });
         

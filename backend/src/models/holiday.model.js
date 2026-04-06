@@ -167,6 +167,26 @@ const holidayModel = {
     const query = 'DELETE FROM holiday_events WHERE id = $1 AND campus_id = $2 RETURNING *';
     const result = await pool.query(query, [id, campusId]);
     return result.rows[0];
+  },
+
+  checkHolidayEvent: async (campusId, dateStr, academicYearId) => {
+    const query = `
+        SELECT h.id, h.holiday_name 
+        FROM holiday_events h
+        WHERE h.campus_id = $1 
+        AND h.start_date <= $2 AND h.end_date >= $2
+        AND (
+            NOT EXISTS (SELECT 1 FROM holiday_curriculum_map m WHERE m.holiday_id = h.id)
+            OR
+            EXISTS (SELECT 1 FROM holiday_curriculum_map m WHERE m.holiday_id = h.id AND m.academic_year_id = $3)
+        )
+    `;
+    try {
+        const result = await pool.query(query, [campusId, dateStr, academicYearId]);
+        return result.rows;
+    } catch (error) {
+        throw error;
+    }
   }
 };
 

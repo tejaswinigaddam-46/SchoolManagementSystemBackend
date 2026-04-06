@@ -2,9 +2,6 @@ const { pool } = require('../config/database');
 
 const RolePermissionModel = {
   getPermissionsForCampus: async (campusId, filters = {}) => {
-    if (!campusId || campusId.toString().trim() === '' || campusId === 'undefined' || campusId === null) {
-      throw new Error('Valid campus ID is required');
-    }
 
     let query = `
       SELECT 

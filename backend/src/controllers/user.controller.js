@@ -1,28 +1,15 @@
-const { getUserProfile, setUserStatus, editUser,createUserWithContext, searchUsers, searchTeachers, searchStudents, searchStudentsByClass, getDistinctRoles } = require('../services/user.service');
-const { validationResult } = require('express-validator');
-const { createUserValidationRules } = require('../validators/user.validator');
+const UserService = require('../services/user.service');
+const AttendanceModel = require('../models/attendance.model');
 
 /**
  * Controller to handle user creation.
  */
 async function createUserController(req, res, client = null) {
-    // Validate input
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-        return res.status(400).json({ errors: errors.array() });
-    }
-
     try {
         const userDetails = req.body;
-        const context = req.user; // Assuming req.user contains tenant_id and campus_id
+        const context = req.user; // req.user contains tenant_id and campus_id
 
-        if (!context || !context.tenant_id || !context.campus_id) {
-            console.error('Invalid user context:', context);
-            console.error('Request body:', req.user);
-            return res.status(400).json({ error: 'Invalid user context. Tenant ID and Campus ID are required.' });
-        }
-
-        const newUser = await createUserWithContext(userDetails, context, client);
+        const newUser = await UserService.createUserWithContext(userDetails, context, client);
         res.status(201).json(newUser);
     } catch (error) {
         console.error('Error in createUserController:', error);
@@ -38,7 +25,7 @@ async function updateUserController(req, res) {
     try {
         const userId = req.params.id;
         const userDetails = req.body;
-        const updatedUser = await editUser(userId, userDetails);
+        const updatedUser = await UserService.editUser(userId, userDetails);
         if (!updatedUser) {
             return res.status(404).json({ error: 'User not found.' });
         }
@@ -54,10 +41,10 @@ async function updateUserController(req, res) {
  */
 async function updateUserStatus(req, res) {
     try {
-        const username = req.params.username;
+        const username = req.params.id;
         const campusId = req.user.campus_id;
         const status = req.body.status;
-        const updated = await setUserStatus(username, campusId, status);
+        const updated = await UserService.setUserStatus(username, campusId, status);
 
         if (!updated) {
             return res.status(404).json({ error: 'User status not found.' });
@@ -82,16 +69,7 @@ async function getProfile(req, res) {
         const tenantId = req.user?.tenantId;
         //const campusId = req.user?.campus_id;
         
-        console.log(req.user);
-        
-        if (!username || !tenantId) {
-            return res.status(401).json({
-                success: false,
-                message: 'Authentication required'
-            });
-        }
-
-        const profile = await getUserProfile(username, tenantId);
+        const profile = await UserService.getUserProfile(username, tenantId);
         
         res.status(200).json({
             success: true,
@@ -123,11 +101,7 @@ async function searchUsersController(req, res) {
         const tenantId = req.user?.tenant_id;
         const campusId = req.user?.campus_id;
 
-        if (!search) {
-            return res.status(400).json({ error: 'Search term is required' });
-        }
-
-        const users = await searchUsers(search, role, tenantId, campusId);
+        const users = await UserService.searchUsers(search, role, tenantId, campusId);
         res.status(200).json({
             success: true,
             data: users
@@ -147,10 +121,6 @@ async function searchTeachersController(req, res) {
         const tenantId = req.user?.tenant_id;
         const userCampusId = req.user?.campus_id;
 
-        if (!search) {
-            return res.status(400).json({ error: 'Search term is required' });
-        }
-
         const filters = {
             academicYearId,
             campusId: campusId || userCampusId,
@@ -158,7 +128,7 @@ async function searchTeachersController(req, res) {
             curriculumId
         };
 
-        const teachers = await searchTeachers(search, filters, tenantId);
+        const teachers = await UserService.searchTeachers(search, filters, tenantId);
         res.status(200).json({
             success: true,
             data: teachers
@@ -188,10 +158,6 @@ async function searchStudentsController(req, res) {
             userCampusId
         });
 
-        if (!search) {
-            return res.status(400).json({ error: 'Search term is required' });
-        }
-
         const filters = {
             academicYearId,
             campusId: campusId || userCampusId,
@@ -201,7 +167,7 @@ async function searchStudentsController(req, res) {
 
         console.log('📋 Filters being passed to service:', filters);
 
-        const students = await searchStudents(search, filters, tenantId);
+        const students = await UserService.searchStudents(search, filters, tenantId);
         
         console.log('✅ Student search results:', {
             count: students.length,
@@ -237,10 +203,6 @@ async function searchStudentsByClassController(req, res) {
             userCampusId
         });
 
-        if (!search) {
-            return res.status(400).json({ error: 'Search term is required' });
-        }
-
         const filters = {
             academicYearId,
             campusId: campusId || userCampusId,
@@ -250,7 +212,7 @@ async function searchStudentsByClassController(req, res) {
 
         console.log('📋 Filters being passed to searchStudentsByClass service:', filters);
 
-        const students = await searchStudentsByClass(search, filters, tenantId);
+        const students = await UserService.searchStudentsByClass(search, filters, tenantId);
         
         console.log('✅ Student search by class results:', {
             count: students.length,
@@ -272,10 +234,10 @@ async function searchStudentsByClassController(req, res) {
  */
 async function getDistinctRolesController(req, res) {
     try {
-        const tenantId = req.user?.tenant_id || req.user?.tenantId || req.tenantId;
-        const campusId = req.user?.campus_id || req.user?.campusId || req.campusId; // Get campusId from user context
+        const tenantId = req.user?.tenant_id;
+        const campusId = req.user?.campus_id;
         
-        const roles = await getDistinctRoles(tenantId, campusId);
+        const roles = await UserService.getDistinctRoles(tenantId, campusId);
         
         res.status(200).json({
             success: true,
@@ -296,11 +258,9 @@ async function getUsersForAttendanceController(req, res) {
         const campusId = req.user?.campus_id;
         const { roles, academicYear } = req.body; // Expect POST body
 
-        if (!roles || !Array.isArray(roles) || roles.length === 0) {
-            return res.status(400).json({ error: 'Roles are required and must be an array' });
-        }
 
-        const users = await require('../services/user.service').getUsersForAttendance(campusId, roles, academicYear, tenantId);
+
+        const users = await UserService.getUsersForAttendance(campusId, roles, academicYear, tenantId);
         
         res.status(200).json({
             success: true,
@@ -317,8 +277,8 @@ async function getUsersForAttendanceController(req, res) {
  */
 async function getActiveUsersOfRolesController(req, res) {
     try {
-        const tenantId = req.user?.tenant_id || req.user?.tenantId || req.tenantId;
-        const campusId = req.user?.campus_id || req.user?.campusId || req.campusId;
+        const tenantId = req.user?.tenant_id;
+        const campusId = req.user?.campus_id;
         const { roles, attendanceDate, academicYear, classId, sectionId } = req.body;
 
         if (!roles || !Array.isArray(roles) || roles.length === 0) {
@@ -345,7 +305,7 @@ async function getActiveUsersOfRolesController(req, res) {
                  // However, for Students, "Taking Attendance" means viewing the aggregated event attendance.
                  // So we should sync first.
                  
-                 const AttendanceModel = require('../models/attendance.model');
+                 
                  const { pool } = require('../config/database');
                  const client = await pool.connect();
                  try {
@@ -357,7 +317,7 @@ async function getActiveUsersOfRolesController(req, res) {
                  }
             }
 
-            users = await require('../services/user.service').getActiveUsersOfRolesWithAttendance(
+            users = await UserService.getActiveUsersOfRolesWithAttendance(
                 campusId,
                 roles,
                 tenantId,
@@ -367,7 +327,7 @@ async function getActiveUsersOfRolesController(req, res) {
                 sectionId
             );
         } else {
-            users = await require('../services/user.service').getActiveUsersOfRoles(campusId, roles, tenantId);
+            users = await UserService.getActiveUsersOfRoles(campusId, roles, tenantId);
         }
         res.status(200).json({
             success: true,
@@ -381,13 +341,10 @@ async function getActiveUsersOfRolesController(req, res) {
 
 async function saveUserAttendanceController(req, res) {
     try {
-        const tenantId = req.user?.tenant_id || req.user?.tenantId || req.tenantId;
-        const campusId = req.user?.campus_id || req.user?.campusId || req.campusId;
+        const tenantId = req.user?.tenant_id;
+        const campusId = req.user?.campus_id;
         const { attendanceDate, academicYear, attendanceData } = req.body;
-        if (!attendanceDate || !academicYear || !attendanceData || !Array.isArray(attendanceData)) {
-            return res.status(400).json({ error: 'Missing or invalid parameters' });
-        }
-        const result = await require('../services/user.service').saveUserAttendance(campusId, tenantId, attendanceDate, academicYear, attendanceData);
+        const result = await UserService.saveUserAttendance(campusId, tenantId, attendanceDate, academicYear, attendanceData);
         res.status(200).json({
             success: true,
             data: result
@@ -413,11 +370,9 @@ async function getDailyAttendanceController(req, res) {
             toDate
         });
 
-        if (!fromDate || !toDate) {
-            return res.status(400).json({ error: 'fromDate and toDate are required' });
-        }
 
-        const result = await require('../services/user.service').getDailyAttendance(
+
+        const result = await UserService.getDailyAttendance(
             campusId,
             roles || [],
             academicYear || null,

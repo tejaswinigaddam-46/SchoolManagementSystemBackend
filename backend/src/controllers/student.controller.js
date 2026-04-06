@@ -85,17 +85,6 @@ const registerStudent = async (req, res) => {
             requestBody: JSON.stringify(studentData)
         });
         
-        // Validate required context
-        if (!tenantId) {
-            logger.error('CONTROLLER: Missing tenantId in request context');
-            return errorResponse(res, 'Invalid tenant context', 400);
-        }
-        
-        if (!campusId) {
-            logger.error('CONTROLLER: Missing campusId in request context');
-            return errorResponse(res, 'Invalid campus context', 400);
-        }
-        
         logger.info('CONTROLLER: Calling studentService.registerStudent', {
             tenantId,
             campusId,
@@ -150,10 +139,6 @@ const updateStudent = async (req, res) => {
         const username = req.params.username; // Changed from studentId to username
         const updateData = req.body;
         
-        if (!username?.trim()) {
-            return errorResponse(res, 'Invalid username', 400);
-        }
-        
         logger.info('Updating student', { 
             tenantId, 
             username, 
@@ -203,10 +188,6 @@ const updateStudentEnrollment = async (req, res) => {
         const studentId = parseInt(req.params.studentId);
         const enrollmentData = req.body;
         
-        if (!studentId || isNaN(studentId)) {
-            return errorResponse(res, 'Invalid student ID', 400);
-        }
-        
         logger.info('Updating student enrollment', { 
             tenantId, 
             studentId, 
@@ -252,10 +233,6 @@ const deleteStudent = async (req, res) => {
         const tenantId = req.user.tenantId;
         const username = req.params.username; // Changed from studentId to username
         
-        if (!username?.trim()) {
-            return errorResponse(res, 'Invalid username', 400);
-        }
-        
         logger.info('Deleting student', { tenantId, username });
         
         const result = await studentService.deleteStudent(username, tenantId);
@@ -284,10 +261,6 @@ const getStudentByAdmissionNumber = async (req, res) => {
     try {
         const tenantId = req.user.tenantId;
         const { admissionNumber } = req.params;
-        
-        if (!admissionNumber?.trim()) {
-            return errorResponse(res, 'Admission number is required', 400);
-        }
         
         logger.info('Getting student by admission number', { 
             tenantId, 
@@ -329,10 +302,6 @@ const getStudentByUsername = async (req, res) => {
         const tenantId = req.user.tenantId;
         const { username } = req.params;
         
-        if (!username?.trim()) {
-            return errorResponse(res, 'Username is required', 400);
-        }
-        
         logger.info('Getting student by username', { 
             tenantId, 
             username 
@@ -373,18 +342,6 @@ const getStudentsByClassSection = async (req, res) => {
         const tenantId = req.user.tenantId;
         const { class: studentClass, section } = req.params;
         const { academicYear } = req.query;
-        
-        if (!studentClass?.trim()) {
-            return errorResponse(res, 'Class is required', 400);
-        }
-        
-        if (!section?.trim()) {
-            return errorResponse(res, 'Section is required', 400);
-        }
-        
-        if (!academicYear?.trim()) {
-            return errorResponse(res, 'response Academic year is required', 400);
-        }
         
         logger.info('Getting students by class and section', { 
             tenantId, 
@@ -742,15 +699,6 @@ const getStudentFilterOptions = async (req, res) => {
         
         logger.info('Getting student filter options', { tenantId, campusId });
         
-        // Validate required parameters
-        if (!campusId) {
-            return errorResponse(res, 'Campus ID is required', 400);
-        }
-        
-        if (!tenantId) {
-            return errorResponse(res, 'Tenant ID is required', 400);
-        }
-        
         // Use centralized filter options method from academic service
         const academicService = require('../services/academic.service');
         const result = await academicService.getFilterOptions(campusId, tenantId);
@@ -779,10 +727,6 @@ const getCompleteStudentForEdit = async (req, res) => {
     try {
         const tenantId = req.user.tenantId;
         const { username } = req.params;
-        
-        if (!username?.trim()) {
-            return errorResponse(res, 'Username is required', 400);
-        }
         
         logger.info('Getting complete student data for editing', { 
             tenantId, 
@@ -822,25 +766,20 @@ const getCompleteStudentForEdit = async (req, res) => {
  */
 const getStudentsByFilters = async (req, res) => {
     try {
-        const { tenantId, campusId } = req.user;
-        const { academic_year_id, class_id, assignment_status, include_parents } = req.query;
-        
-        // Validate required parameters
-        if (!academic_year_id) {
-            return errorResponse(res, 'Academic year ID is required', 400);
-        }
-        
-        if (!class_id) {
-            return errorResponse(res, 'Class ID is required', 400);
-        }
-        
-        if (!assignment_status || !['assigned', 'unassigned'].includes(assignment_status)) {
-            return errorResponse(res, 'Assignment status must be either "assigned" or "unassigned"', 400);
+        const { tenantId, campusId, role } = req.user;
+        const { academic_year_id, class_id, assignment_status, include_parents, campus_id } = req.query;
+        const requestedCampusId = campus_id || null;
+        const effectiveCampusId = requestedCampusId || campusId;
+
+        if (requestedCampusId && role !== 'Admin' && requestedCampusId !== campusId) {
+            return errorResponse(res, 'You do not have permission to view students from this campus', 403);
         }
         
         logger.info('Getting students by filters for section assignment', { 
             tenantId, 
             campusId,
+            requestedCampusId,
+            effectiveCampusId,
             academic_year_id,
             class_id,
             assignment_status,
@@ -849,7 +788,7 @@ const getStudentsByFilters = async (req, res) => {
         
         const result = await studentService.getStudentsByFilters({
             tenantId,
-            campusId,
+            campusId: effectiveCampusId,
             academic_year_id: parseInt(academic_year_id),
             class_id: parseInt(class_id),
             assignment_status,
@@ -858,7 +797,7 @@ const getStudentsByFilters = async (req, res) => {
         
         logger.info('Students retrieved by filters', { 
             tenantId, 
-            campusId,
+            campusId: effectiveCampusId,
             academic_year_id,
             class_id,
             assignment_status,
@@ -887,23 +826,6 @@ const assignStudentsToSection = async (req, res) => {
     try {
         const { tenantId, campusId } = req.user;
         const { student_ids, section_id, academic_year_id, class_id } = req.body;
-        
-        // Validate required parameters
-        if (!student_ids || !Array.isArray(student_ids) || student_ids.length === 0) {
-            return errorResponse(res, 'Student IDs array is required and cannot be empty', 400);
-        }
-        
-        if (!section_id) {
-            return errorResponse(res, 'Section ID is required', 400);
-        }
-        
-        if (!academic_year_id) {
-            return errorResponse(res, 'Academic year ID is required', 400);
-        }
-        
-        if (!class_id) {
-            return errorResponse(res, 'Class ID is required', 400);
-        }
         
         logger.info('Assigning students to section', { 
             tenantId, 
@@ -958,15 +880,6 @@ const updateStudentSection = async (req, res) => {
         const studentId = parseInt(req.params.studentId);
         const { section_id } = req.body;
         
-        // Validate required parameters
-        if (!studentId || isNaN(studentId)) {
-            return errorResponse(res, 'Invalid student ID', 400);
-        }
-        
-        if (!section_id) {
-            return errorResponse(res, 'Section ID is required', 400);
-        }
-        
         logger.info('Updating student section assignment', { 
             tenantId, 
             campusId,
@@ -1015,11 +928,6 @@ const deassignStudentSection = async (req, res) => {
         const { tenantId, campusId } = req.user;
         const studentId = parseInt(req.params.studentId);
         
-        // Validate required parameters
-        if (!studentId || isNaN(studentId)) {
-            return errorResponse(res, 'Invalid student ID', 400);
-        }
-        
         logger.info('Deassigning student from section', { 
             tenantId, 
             campusId,
@@ -1060,14 +968,6 @@ const getStudentsBySectionController = async (req, res) => {
         const { tenantId, campusId } = req.user;
         const { classId, sectionId } = req.params;
         const { academicYearId } = req.query;
-
-        if (!classId) {
-            return errorResponse(res, 'Class ID is required', 400);
-        }
-
-        if (!sectionId) {
-            return errorResponse(res, 'Section ID is required', 400);
-        }
 
         logger.info('CONTROLLER: Getting students by section ID', {
             tenantId,

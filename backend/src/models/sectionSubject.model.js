@@ -8,10 +8,6 @@ const SectionSubjectModel = {
    * @returns {Promise<{inserted:number, updated:number}>}
    */
   async bulkUpsert(assignments) {
-    if (!Array.isArray(assignments) || assignments.length === 0) {
-      throw new Error('Assignments array is required');
-    }
-
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
@@ -33,9 +29,6 @@ const SectionSubjectModel = {
           ? null
           : (isNaN(parseInt(a.teacher_user_id)) ? null : parseInt(a.teacher_user_id));
 
-        if (!sectionId || !subjectId) {
-          throw new Error('Valid section_id and subject_id are required');
-        }
         logger.info('Upserting:', { sectionId, subjectId, teacherUserId });
         const res = await client.query(query, [sectionId, subjectId, teacherUserId]);
         inserted += res.rowCount; // DO NOTHING returns 0 rowCount when conflict
@@ -90,6 +83,23 @@ const SectionSubjectModel = {
       throw error;
     } finally {
       client.release();
+    }
+  }
+  ,
+  async getTeacherAcademicYears(teacherUserIds, client = pool) {
+    if (!Array.isArray(teacherUserIds) || teacherUserIds.length === 0) return [];
+    try {
+      const query = `
+        SELECT DISTINCT ss.teacher_user_id, cs.academic_year_id
+        FROM section_subjects ss
+        JOIN class_sections cs ON ss.section_id = cs.section_id
+        WHERE ss.teacher_user_id = ANY($1)
+      `;
+      const res = await client.query(query, [teacherUserIds]);
+      return res.rows;
+    } catch (error) {
+      logger.error('Error fetching teacher academic years', error);
+      throw error;
     }
   }
 };

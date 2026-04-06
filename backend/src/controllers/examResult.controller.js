@@ -15,10 +15,6 @@ const bulkCreateExamResultsController = async (req, res) => {
   try {
     const { tenantId, campusId } = req.user;
     const { results } = req.body; // Expecting { results: [...] }
-    
-    if (!Array.isArray(results)) {
-      return res.status(400).json({ success: false, message: 'Results must be an array' });
-    }
 
     const createdResults = await ExamResultService.createBulkResults(results, tenantId, campusId);
     res.status(201).json({ success: true, data: createdResults });

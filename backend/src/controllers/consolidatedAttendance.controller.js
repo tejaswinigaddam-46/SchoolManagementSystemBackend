@@ -2,21 +2,9 @@ const consolidatedAttendanceService = require('../services/consolidatedAttendanc
 
 async function getConsolidatedAttendanceController(req, res) {
     try {
-        const tenantId = req.user?.tenant_id || req.user?.tenantId || req.tenantId;
-        const campusId = req.user?.campus_id || req.user?.campusId || req.campusId;
+        const tenantId = req.user?.tenantId || req.tenantId;
+        const campusId = req.user?.campusId || req.campusId;
         const { roles, academicYear, fromDate, toDate, classId, sectionId } = req.body;
-        
-        console.log('ConsolidatedAttendanceController Request', {
-            campusId,
-            roles,
-            academicYear,
-            fromDate,
-            toDate
-        });
-
-        if (!fromDate || !toDate) {
-            return res.status(400).json({ error: 'fromDate and toDate are required' });
-        }
 
         const result = await consolidatedAttendanceService.getConsolidatedAttendance(
             campusId,

@@ -4,7 +4,7 @@ const helmet = require('helmet');
 const morgan = require('morgan');
 const compression = require('compression');
 const cookieParser = require('cookie-parser');
-require('dotenv').config();
+const config = require('./config');
 
 const routes = require('./routes');
 const { errorHandler } = require('./middleware/errorHandler');
@@ -16,6 +16,46 @@ const app = express();
 
 // Trust proxy for accurate IP addresses
 app.set('trust proxy', 1);
+
+// CORS configuration with pre-flight handling
+const corsOptions = {
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    // Check if the origin is explicitly allowed in config
+    if (config.cors.origin.includes(origin)) {
+      return callback(null, true);
+    }
+
+    // In development, allow any subdomain of localhost.com on common frontend ports
+    if (config.server.environment === 'development') {
+      const url = new URL(origin);
+      if (url.hostname.endsWith('.localhost.com') || url.hostname === 'localhost') {
+        return callback(null, true);
+      }
+    }
+    
+    console.warn('CORS blocked origin:', origin);
+    callback(new Error(`Not allowed by CORS: ${origin}`));
+  },
+  credentials: config.cors.credentials,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: [
+    'Content-Type', 
+    'Authorization', 
+    'X-Tenant-ID', 
+    'X-School-ID', 
+    'X-Tenant-Subdomain', 
+    'X-Subdomain',
+    'Accept',
+    'Origin',
+    'X-Requested-With'
+  ],
+  optionsSuccessStatus: 200 // Ensure 204/200 status for pre-flight requests
+};
+
+app.use(cors(corsOptions));
 
 // Security middleware
 app.use(helmet({
@@ -30,71 +70,6 @@ app.use(helmet({
   crossOriginEmbedderPolicy: false
 }));
 
-// CORS configuration
-const FRONTEND_URL = process.env.FRONTEND_URL;
-const FRONTEND_BASE_DOMAIN = process.env.FRONTEND_BASE_DOMAIN;
-
-const allowedOrigins = [
-  // 'http://localhost:3000',      // Standard React dev server
-  // 'http://localhost:3001',      // Alternative React dev server
-  // 'http://localhost:5173',      // Vite dev server default
-  // 'http://localhost:4173',      // Vite preview server
-  // 'http://127.0.0.1:3000',
-  // 'http://127.0.0.1:3001',
-  // 'http://127.0.0.1:5173',
-  // 'http://127.0.0.1:4173',
-  // 'http://*.localhost:3000',
-  // 'http://*.localhost:3001',
-  // 'http://*.localhost:5173',
-  FRONTEND_URL
-].filter(Boolean);
-
-app.use(cors({
-  origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
-    
-    // Check for exact matches first
-    if (allowedOrigins.indexOf(origin) !== -1) {
-      return callback(null, true);
-    }
-    
-    // Check for subdomain patterns in development
-    if (process.env.NODE_ENV === 'development' || process.env.NODE_ENV !== 'production') {
-      // Allow localhost with common ports
-      if (origin.match(/^http:\/\/localhost:(3000|3001|5173|4173)$/)) {
-        return callback(null, true);
-      }
-      
-      // Allow 127.0.0.1 with common ports
-      if (origin.match(/^http:\/\/127\.0\.0\.1:(3000|3001|5173|4173)$/)) {
-        return callback(null, true);
-      }
-      
-      // Allow *.localhost.com with common ports for subdomain routing
-      if (origin.match(/^http:\/\/[a-z0-9-]+\.localhost\.com:(3000|3001|5173|4173)$/)) {
-        return callback(null, true);
-      }
-    }
-    
-    // In production, allow subdomain patterns for your configured domain
-    if (process.env.NODE_ENV === 'production' && FRONTEND_BASE_DOMAIN) {
-      const escapedDomain = FRONTEND_BASE_DOMAIN.replace(/\./g, '\\.');
-      const subdomainRegex = new RegExp(`^https:\\/\\/[a-z0-9-]+\\.${escapedDomain}$`);
-
-      if (origin === `https://${FRONTEND_BASE_DOMAIN}` || subdomainRegex.test(origin)) {
-        return callback(null, true);
-      }
-    }
-    
-    console.warn('CORS blocked origin:', origin);
-    callback(new Error('Not allowed by CORS'));
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Tenant-ID', 'X-School-ID', 'X-Tenant-Subdomain', 'X-Subdomain']
-}));
-
 // Compression middleware
 app.use(compression());
 
@@ -104,7 +79,7 @@ app.use(rateLimiter);
 // Cookie parser middleware (for refresh tokens)
 app.use(cookieParser());
 
-// Body parsing middleware
+// Body parsing middlewares
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 

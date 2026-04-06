@@ -10,10 +10,6 @@ const bulkAssign = async (req, res) => {
   try {
     const { assignments } = req.body;
 
-    if (!assignments || !Array.isArray(assignments) || assignments.length === 0) {
-      return errorResponse(res, 'Assignments array is required', 400);
-    }
-
     const result = await SectionSubjectService.bulkAssign(assignments);
     return successResponse(res, 'Subjects assigned to sections (insert only)', { result });
   } catch (error) {
@@ -48,10 +44,6 @@ module.exports = { bulkAssign, listBySections };
 const unassign = async (req, res) => {
   try {
     const { section_id, subject_ids } = req.body;
-
-    if (!section_id || !Array.isArray(subject_ids)) {
-      return errorResponse(res, 'section_id and subject_ids array are required', 400);
-    }
 
     const result = await SectionSubjectService.unassign(section_id, subject_ids);
     return successResponse(res, 'Subjects unassigned from section', { result });

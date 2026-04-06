@@ -3,6 +3,7 @@ const userModel = require('../models/user.model');
 const { pool } = require('../config/database');
 const logger = require('../utils/logger');
 const feeService = require('./fee.service');
+const classModel = require('../models/class.model');
 
 // ==================== STUDENT SERVICE METHODS ====================
 
@@ -165,11 +166,8 @@ const registerStudent = async (studentData, tenantId, campusId) => {
             const enrollment = studentResult?.enrollment;
             if (enrollment?.academic_year_id && enrollment?.class_id) {
                 const classId = Number(enrollment.class_id);
-                const classRes = await client.query(
-                    'SELECT class_name FROM classes WHERE class_id = $1',
-                    [classId]
-                );
-                const className = classRes.rows[0]?.class_name;
+                const classObj = await classModel.findClassById(classId, tenantId);
+                const className = classObj?.class_name;
                 if (className) {
                     await feeService.assignFeesForEnrollmentWithClient(client, {
                         tenant_id: tenantId,
@@ -1036,128 +1034,14 @@ const getStudentsByFilters = async (filters) => {
             throw new Error('Missing required parameters for student filtering');
         }
         
-        // Build the query based on assignment status
-        let query;
-        let params;
-        
-        if (assignment_status === 'unassigned') {
-            // Get students without section assignment
-            query = `
-                SELECT DISTINCT 
-                    u.user_id,
-                    u.username,
-                    u.first_name,
-                    u.middle_name,
-                    u.last_name,
-                    se.admission_number,
-                    se.academic_year_id,
-                    c.class_name,
-                    se.section_id,
-                    se.roll_number,
-                    se.admission_date
-                FROM users u
-                INNER JOIN student_enrollment se ON u.username = se.username
-                INNER JOIN user_statuses us ON u.username = us.username AND us.campus_id = se.campus_id
-                INNER JOIN classes c ON se.class_id = c.class_id
-                WHERE u.tenant_id = $1 
-                    AND se.campus_id = $2
-                    AND se.academic_year_id = $3
-                    AND c.class_id = $4
-                    AND u.role = 'Student'
-                    AND us.status = 'active'
-                    AND (se.section_id IS NULL OR se.section_id = 0)
-                ORDER BY u.first_name, u.last_name
-            `;
-            params = [tenantId, campusId, academic_year_id, class_id];
-        } else {
-            // Get students with section assignment
-            if (include_parents) {
-                query = `
-                    SELECT 
-                        u.user_id,
-                        u.username,
-                        u.first_name,
-                        u.middle_name,
-                        u.last_name,
-                        se.admission_number,
-                        se.academic_year_id,
-                        c.class_name,
-                        se.section_id,
-                        cs.section_name,
-                        se.roll_number,
-                        se.admission_date,
-                        COALESCE(
-                            json_agg(
-                                json_build_object(
-                                    'user_id', p.user_id,
-                                    'username', p.username,
-                                    'first_name', p.first_name,
-                                    'last_name', p.last_name,
-                                    'relationship', spr.relationship_type,
-                                    'phone', p.phone_number
-                                ) ORDER BY p.first_name
-                            ) FILTER (WHERE spr.parent_username IS NOT NULL),
-                            '[]'
-                        ) as parents
-                    FROM users u
-                    INNER JOIN student_enrollment se ON u.username = se.username
-                    INNER JOIN user_statuses us ON u.username = us.username AND us.campus_id = se.campus_id
-                    INNER JOIN classes c ON se.class_id = c.class_id
-                    LEFT JOIN class_sections cs ON se.section_id = cs.section_id
-                    LEFT JOIN student_parent_relations spr ON u.username = spr.student_username
-                    LEFT JOIN users p ON spr.parent_username = p.username
-                    WHERE u.tenant_id = $1 
-                        AND se.campus_id = $2
-                        AND se.academic_year_id = $3
-                        AND c.class_id = $4
-                        AND u.role = 'Student'
-                        AND us.status = 'active'
-                        AND se.section_id IS NOT NULL 
-                        AND se.section_id > 0
-                    GROUP BY u.user_id, u.username, u.first_name, u.middle_name, u.last_name, se.admission_number, se.academic_year_id, c.class_name, se.section_id, cs.section_name, se.roll_number, se.admission_date
-                    ORDER BY u.first_name, u.last_name
-                `;
-            } else {
-                query = `
-                    SELECT DISTINCT 
-                        u.user_id,
-                        u.username,
-                        u.first_name,
-                        u.middle_name,
-                        u.last_name,
-                        se.admission_number,
-                        se.academic_year_id,
-                        c.class_name,
-                        se.section_id,
-                        cs.section_name,
-                        se.roll_number,
-                        se.admission_date
-                    FROM users u
-                    INNER JOIN student_enrollment se ON u.username = se.username
-                    INNER JOIN user_statuses us ON u.username = us.username AND us.campus_id = se.campus_id
-                    INNER JOIN classes c ON se.class_id = c.class_id
-                    LEFT JOIN class_sections cs ON se.section_id = cs.section_id
-                    WHERE u.tenant_id = $1 
-                        AND se.campus_id = $2
-                        AND se.academic_year_id = $3
-                        AND c.class_id = $4
-                        AND u.role = 'Student'
-                        AND us.status = 'active'
-                        AND se.section_id IS NOT NULL 
-                        AND se.section_id > 0
-                    ORDER BY u.first_name, u.last_name
-                `;
-            }
-            params = [tenantId, campusId, academic_year_id, class_id];
-        }
-        
-        logger.info('SERVICE: Executing query with params', {
-            query: query.replace(/\s+/g, ' ').trim(),
-            params,
-            paramTypes: params.map(p => typeof p)
+        const students = await studentModel.getStudentsByFilters({
+            tenantId,
+            campusId,
+            academic_year_id,
+            class_id,
+            assignment_status,
+            include_parents
         });
-        
-        const result = await pool.query(query, params);
         
         logger.info('SERVICE: Students retrieved by filters', {
             tenantId,
@@ -1165,10 +1049,10 @@ const getStudentsByFilters = async (filters) => {
             academic_year_id,
             class_id,
             assignment_status,
-            count: result.rows.length
+            count: students.length
         });
         
-        return result.rows;
+        return students;
         
     } catch (error) {
         logger.error('SERVICE: Error getting students by filters:', error);
@@ -1204,105 +1088,27 @@ const assignStudentsToSection = async (assignmentData) => {
             class_id,
             studentCount: student_ids.length
         });
-        
-        // Verify section exists and belongs to the correct class/academic year
-        const sectionQuery = `
-            SELECT cs.section_id, cs.section_name, cs.class_id, cs.academic_year_id
-            FROM class_sections cs
-            WHERE cs.section_id = $1 
-                AND cs.class_id = $2 
-                AND cs.academic_year_id = $3
-                AND cs.campus_id = $4
-        `;
-        const sectionResult = await client.query(sectionQuery, [section_id, class_id, academic_year_id, campusId]);
-        
-        if (sectionResult.rows.length === 0) {
-            throw new Error('Section not found or does not match the specified class and academic year');
-        }
-        
-        const section = sectionResult.rows[0];
-        
-        // Verify students exist and are eligible for assignment
-        const studentCheckQuery = `
-            SELECT DISTINCT 
-                u.user_id,
-                u.username,
-                se.admission_number,
-                se.section_id as current_section_id
-            FROM users u
-            INNER JOIN student_enrollment se ON u.username = se.username
-            INNER JOIN classes c ON se.class_id = c.class_id
-            INNER JOIN user_statuses us ON u.username = us.username AND us.campus_id = se.campus_id
-            WHERE u.tenant_id = $1 
-                AND se.campus_id = $2
-                AND se.academic_year_id = $3
-                AND c.class_id = $4
-                AND u.role = 'Student'
-                AND us.status = 'active'
-                AND u.user_id = ANY($5)
-        `;
-        
-        const studentCheckResult = await client.query(studentCheckQuery, [
-            tenantId, 
-            campusId, 
-            academic_year_id, 
-            class_id, 
-            student_ids
-        ]);
-        
-        if (studentCheckResult.rows.length !== student_ids.length) {
-            throw new Error('Some students not found or not eligible for assignment');
-        }
-        
-        // Check if any students are already assigned to a section
-        const alreadyAssigned = studentCheckResult.rows.filter(student => 
-            student.current_section_id && student.current_section_id !== null && student.current_section_id > 0
-        );
-        
-        if (alreadyAssigned.length > 0) {
-            const assignedAdmissions = alreadyAssigned.map(s => s.admission_number).join(', ');
-            throw new Error(`Some students are already assigned to sections: ${assignedAdmissions}`);
-        }
-        
-        // Prepare usernames for update
-        const usernames = studentCheckResult.rows.map(student => student.username);
-        
-        // Update student_enrollment table with section_id
-        const updateQuery = `
-            UPDATE student_enrollment 
-            SET section_id = $1
-            WHERE username = ANY($2)
-                AND campus_id = $3
-                AND academic_year_id = $4
-            RETURNING admission_number, username, section_id
-        `;
-        
-        const updateResult = await client.query(updateQuery, [
-            section_id,
-            usernames,
+
+        const result = await studentModel.assignStudentsToSectionWithClient(client, {
+            tenantId,
             campusId,
-            academic_year_id
-        ]);
-        
+            student_ids,
+            section_id,
+            academic_year_id,
+            class_id
+        });
+
         logger.info('SERVICE: Students assigned to section successfully', {
             tenantId,
             campusId,
             section_id,
-            section_name: section.section_name,
-            assignedCount: updateResult.rows.length,
-            updatedStudents: updateResult.rows.map(r => r.admission_number)
+            section_name: result.section?.section_name,
+            assignedCount: result.assignedCount
         });
         
         await client.query('COMMIT');
         
-        return {
-            assignedCount: updateResult.rows.length,
-            updatedStudents: updateResult.rows,
-            section: {
-                section_id: section.section_id,
-                section_name: section.section_name
-            }
-        };
+        return result;
         
     } catch (error) {
         await client.query('ROLLBACK');
@@ -1333,98 +1139,7 @@ const updateStudentSection = async (studentId, sectionId, tenantId, campusId) =>
             tenantId,
             campusId
         });
-
-        // Verify student exists and get current enrollment
-        const studentQuery = `
-            SELECT DISTINCT 
-                u.user_id,
-                u.username,
-                se.admission_number,
-                se.academic_year_id,
-                c.class_name,
-                se.section_id as current_section_id,
-                c.class_id
-            FROM users u
-            INNER JOIN student_enrollment se ON u.username = se.username
-            INNER JOIN classes c ON se.class_id = c.class_id
-            INNER JOIN user_statuses us ON u.username = us.username AND us.campus_id = se.campus_id
-            WHERE u.user_id = $1 
-                AND u.tenant_id = $2
-                AND se.campus_id = $3
-                AND u.role = 'Student'
-                AND us.status = 'active'
-        `;
-
-        const studentResult = await pool.query(studentQuery, [studentId, tenantId, campusId]);
-
-        if (studentResult.rows.length === 0) {
-            throw new Error('Student not found or not eligible for section assignment');
-        }
-
-        const student = studentResult.rows[0];
-
-        // Verify section exists and belongs to the correct class/academic year
-        const sectionQuery = `
-            SELECT cs.section_id, cs.section_name, cs.class_id, cs.academic_year_id
-            FROM class_sections cs
-            WHERE cs.section_id = $1 
-                AND cs.class_id = $2 
-                AND cs.academic_year_id = $3
-                AND cs.campus_id = $4
-        `;
-        const sectionResult = await pool.query(sectionQuery, [
-            sectionId, 
-            student.class_id, 
-            student.academic_year_id, 
-            campusId
-        ]);
-
-        if (sectionResult.rows.length === 0) {
-            throw new Error('Section not found or does not match student\'s class and academic year');
-        }
-
-        const section = sectionResult.rows[0];
-
-        // Update student section assignment
-        const updateQuery = `
-            UPDATE student_enrollment 
-            SET section_id = $1
-            WHERE username = $2
-                AND campus_id = $3
-                AND academic_year_id = $4
-            RETURNING admission_number, username, section_id
-        `;
-
-        const updateResult = await pool.query(updateQuery, [
-            sectionId,
-            student.username,
-            campusId,
-            student.academic_year_id
-        ]);
-
-        if (updateResult.rows.length === 0) {
-            throw new Error('Failed to update student section assignment');
-        }
-
-        logger.info('SERVICE: Student section updated successfully', {
-            studentId,
-            username: student.username,
-            admissionNumber: student.admission_number,
-            oldSectionId: student.current_section_id,
-            newSectionId: sectionId,
-            sectionName: section.section_name
-        });
-
-        return {
-            studentId,
-            username: student.username,
-            admissionNumber: student.admission_number,
-            section: {
-                section_id: section.section_id,
-                section_name: section.section_name
-            },
-            previousSectionId: student.current_section_id
-        };
+        return await studentModel.updateStudentSectionAssignment(studentId, sectionId, tenantId, campusId);
 
     } catch (error) {
         logger.error('SERVICE: Error updating student section:', error);
@@ -1450,77 +1165,7 @@ const deassignStudentSection = async (studentId, tenantId, campusId) => {
             tenantId,
             campusId
         });
-
-        // Verify student exists and get current enrollment
-        const studentQuery = `
-            SELECT DISTINCT 
-                u.user_id,
-                u.username,
-                se.admission_number,
-                se.academic_year_id,
-                se.section_id as current_section_id,
-                cs.section_name as current_section_name
-            FROM users u
-            INNER JOIN student_enrollment se ON u.username = se.username
-            INNER JOIN user_statuses us ON u.username = us.username AND us.campus_id = se.campus_id
-            LEFT JOIN class_sections cs ON se.section_id = cs.section_id
-            WHERE u.user_id = $1 
-                AND u.tenant_id = $2
-                AND se.campus_id = $3
-                AND u.role = 'Student'
-                AND us.status = 'active'
-        `;
-
-        const studentResult = await pool.query(studentQuery, [studentId, tenantId, campusId]);
-
-        if (studentResult.rows.length === 0) {
-            throw new Error('Student not found');
-        }
-
-        const student = studentResult.rows[0];
-
-        if (!student.current_section_id) {
-            throw new Error('Student is not currently assigned to any section');
-        }
-
-        // Remove section assignment by setting section_id to null
-        const updateQuery = `
-            UPDATE student_enrollment 
-            SET section_id = NULL
-            WHERE username = $1
-                AND campus_id = $2
-                AND academic_year_id = $3
-            RETURNING admission_number, username, section_id
-        `;
-
-        const updateResult = await pool.query(updateQuery, [
-            student.username,
-            campusId,
-            student.academic_year_id
-        ]);
-
-        if (updateResult.rows.length === 0) {
-            throw new Error('Failed to deassign student from section');
-        }
-
-        logger.info('SERVICE: Student deassigned from section successfully', {
-            studentId,
-            username: student.username,
-            admissionNumber: student.admission_number,
-            previousSectionId: student.current_section_id,
-            previousSectionName: student.current_section_name
-        });
-
-        return {
-            studentId,
-            username: student.username,
-            admissionNumber: student.admission_number,
-            previousSection: {
-                section_id: student.current_section_id,
-                section_name: student.current_section_name
-            },
-            message: 'Student successfully deassigned from section'
-        };
+        return await studentModel.deassignStudentSectionAssignment(studentId, tenantId, campusId);
 
     } catch (error) {
         logger.error('SERVICE: Error deassigning student from section:', error);

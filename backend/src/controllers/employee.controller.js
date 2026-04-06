@@ -1,4 +1,3 @@
-const { validationResult } = require('express-validator');
 const logger = require('../utils/logger');
 const employeeService = require('../services/employee.service');
 
@@ -17,20 +16,6 @@ const createEmployeeController = async (req, res) => {
         bodyKeys: Object.keys(req.body || {})
     });
 
-    // Validate input
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-        logger.warn('CONTROLLER: Validation errors in employee creation', {
-            errors: errors.array(),
-            tenantId: req.user?.tenantId
-        });
-        return res.status(400).json({ 
-            success: false, 
-            message: 'Validation failed',
-            errors: errors.array() 
-        });
-    }
-
     try {
         const employeeData = req.body;
         const context = {
@@ -39,14 +24,6 @@ const createEmployeeController = async (req, res) => {
             role: req.user.role,
             username: req.user.username
         };
-
-        if (!context.tenant_id || !context.campus_id) {
-            logger.error('CONTROLLER: Invalid user context for employee creation', { context });
-            return res.status(400).json({ 
-                success: false, 
-                message: 'Invalid user context. Tenant ID and Campus ID are required.' 
-            });
-        }
 
         const result = await employeeService.createEmployee(employeeData, context);
         
@@ -99,12 +76,6 @@ const createEmployeeController = async (req, res) => {
  * @param {Object} res - Express response object
  */
 const getAllEmployeesController = async (req, res) => {
-    logger.info('CONTROLLER: getAllEmployeesController called', {
-        tenantId: req.user?.tenant_id,
-        campusId: req.user?.campus_id,
-        userRole: req.user?.role,
-        queryParams: req.query
-    });
 
     try {
         const context = {
@@ -317,21 +288,6 @@ const updateEmployeeController = async (req, res) => {
         updateSections: Object.keys(req.body || {})
     });
 
-    // Validate input
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-        logger.warn('CONTROLLER: Validation errors in employee update', {
-            errors: errors.array(),
-            username,
-            tenantId: req.user?.tenant_id
-        });
-        return res.status(400).json({ 
-            success: false, 
-            message: 'Validation failed',
-            errors: errors.array() 
-        });
-    }
-
     try {
         const updateData = req.body;
         const context = {
@@ -445,13 +401,6 @@ const checkUsernameAvailabilityController = async (req, res) => {
         tenantId: req.user?.tenant_id
     });
 
-    if (!username) {
-        return res.status(400).json({ 
-            success: false, 
-            message: 'Username parameter is required' 
-        });
-    }
-
     try {
         const context = {
             tenant_id: req.user.tenantId,
@@ -490,13 +439,6 @@ const checkEmployeeIdAvailabilityController = async (req, res) => {
         campus_id,
         tenantId: req.user?.tenant_id
     });
-
-    if (!employee_id || !campus_id) {
-        return res.status(400).json({ 
-            success: false, 
-            message: 'employee_id and campus_id parameters are required' 
-        });
-    }
 
     try {
         const context = {
@@ -557,14 +499,6 @@ const getEmployeeStatisticsController = async (req, res) => {
     });
 
     try {
-        if (!req.user) {
-            logger.error('CONTROLLER: No user context available - authentication failed');
-            return res.status(401).json({ 
-                success: false, 
-                message: 'Authentication required' 
-            });
-        }
-
         const context = {
             tenant_id: req.user.tenantId,
             campus_id: req.user.campusId,

@@ -1,48 +1,90 @@
 const leaveModel = require('../models/leave.model');
 
+const uniqueByUsername = (items) => {
+  const out = [];
+  const seen = new Set();
+  for (const it of items || []) {
+    const username = String(it?.username || '').trim();
+    if (!username) continue;
+    if (seen.has(username)) continue;
+    seen.add(username);
+    out.push({ ...it, username });
+  }
+  return out;
+};
+
+const getTenantApproverBuckets = async (tenantId) => {
+  const usernames = await leaveModel.findTenantAdmins(tenantId);
+  const buckets = { zonal: [], super: [] };
+  for (const u of usernames || []) {
+    const username = String(u || '').trim();
+    if (!username) continue;
+    const role = await leaveModel.getUserRoleByUsername(username);
+    if (role === 'Superadmin') buckets.super.push({ username, role: 'Superadmin' });
+    else if (role === 'Zonaladmin') buckets.zonal.push({ username, role: 'Zonaladmin' });
+  }
+  buckets.zonal = uniqueByUsername(buckets.zonal);
+  buckets.super = uniqueByUsername(buckets.super);
+  return buckets;
+};
+
 const determineApprovers = async (tenantId, campusId, requesterUsername, requesterRole) => {
-  const approvers = [];
-  const role = String(requesterRole);
+  const role = String(requesterRole || '');
+  const requester = String(requesterUsername || '').trim();
+  const { zonal, super: superAdmins } = await getTenantApproverBuckets(tenantId);
+
+  const campusAdmins = uniqueByUsername(
+    (await leaveModel.findAdminsForCampus(campusId)).map(u => ({ username: u, role: 'Admin' }))
+  ).filter(a => a.username !== requester);
+
+  const pickTenantZonal = () => zonal.filter(a => a.username !== requester);
+  const pickTenantSuper = () => superAdmins.filter(a => a.username !== requester);
+
+  if (role === 'Superadmin') {
+    return [{ username: requester, role: 'Superadmin', autoApprove: true }];
+  }
+
+  if (role === 'Zonaladmin') {
+    return pickTenantSuper();
+  }
+
+  if (role === 'Admin') {
+    const z = pickTenantZonal();
+    if (z.length > 0) return z;
+    return pickTenantSuper();
+  }
+
+  if (role === 'Employee') {
+    if (campusAdmins.length > 0) return campusAdmins;
+    const z = pickTenantZonal();
+    if (z.length > 0) return z;
+    return pickTenantSuper();
+  }
+
+  if (role === 'Teacher') {
+    const principal = String((await leaveModel.findPrincipalForCampus(campusId)) || '').trim();
+    if (principal && principal !== requester) return [{ username: principal, role: 'Employee' }];
+    if (campusAdmins.length > 0) return campusAdmins;
+    const z = pickTenantZonal();
+    if (z.length > 0) return z;
+    return pickTenantSuper();
+  }
 
   if (role === 'Student') {
-    const primaryTeacher = await leaveModel.findPrimaryTeacherForStudent(requesterUsername, campusId);
-    if (primaryTeacher) approvers.push({ username: primaryTeacher, role: 'Teacher' });
-    const principal = await leaveModel.findPrincipalForCampus(campusId);
-    if (principal) approvers.push({ username: principal, role: 'Employee' }); // role may be Employee with designation Principal
-    const admins = await leaveModel.findAdminsForCampus(campusId);
-    admins.forEach(u => approvers.push({ username: u, role: 'Admin' }));
-  } else if (role === 'Teacher' || role === 'Employee') {
-    const principal = await leaveModel.findPrincipalForCampus(campusId);
-    if (principal) approvers.push({ username: principal, role: 'Employee' });
-    const admins = await leaveModel.findAdminsForCampus(campusId);
-    admins.forEach(u => approvers.push({ username: u, role: 'Admin' }));
-  } else if (role === 'Admin') {
-    const tenantAdmins = await leaveModel.findTenantAdmins(tenantId);
-    tenantAdmins.forEach(u => {
-      // Determine actual role for display: Zonaladmin or Superadmin
-      approvers.push({ username: u, role: 'Admin' }); // fallback
-    });
-    // If possible, replace with actual roles
-    for (let i = 0; i < approvers.length; i++) {
-      const actualRole = await leaveModel.getUserRoleByUsername(approvers[i].username);
-      if (actualRole) approvers[i].role = actualRole;
-    }
-  } else {
-    // Default: send to Admins at campus
-    const admins = await leaveModel.findAdminsForCampus(campusId);
-    admins.forEach(u => approvers.push({ username: u, role: 'Admin' }));
+    const primaryTeacher = String((await leaveModel.findPrimaryTeacherForStudent(requester, campusId)) || '').trim();
+    if (primaryTeacher && primaryTeacher !== requester) return [{ username: primaryTeacher, role: 'Teacher' }];
+    const principal = String((await leaveModel.findPrincipalForCampus(campusId)) || '').trim();
+    if (principal && principal !== requester) return [{ username: principal, role: 'Employee' }];
+    if (campusAdmins.length > 0) return campusAdmins;
+    const z = pickTenantZonal();
+    if (z.length > 0) return z;
+    return pickTenantSuper();
   }
 
-  // De-duplicate by username
-  const unique = [];
-  const seen = new Set();
-  for (const a of approvers) {
-    if (!seen.has(a.username)) {
-      seen.add(a.username);
-      unique.push(a);
-    }
-  }
-  return unique;
+  if (campusAdmins.length > 0) return campusAdmins;
+  const z = pickTenantZonal();
+  if (z.length > 0) return z;
+  return pickTenantSuper();
 };
 
 const createLeaveRequest = async (tenantId, campusId, requesterUsername, payload) => {
@@ -58,14 +100,13 @@ const createLeaveRequest = async (tenantId, campusId, requesterUsername, payload
     duration_category: payload.duration_category
   };
 
-  if (!data.leave_date) throw new Error('leave_date is required');
-  if (!data.leave_reason) throw new Error('leave_reason is required');
-  if (!data.duration_days || Number(data.duration_days) <= 0) throw new Error('duration_days must be > 0');
-  if (!data.duration_category) throw new Error('duration_category is required');
+  // Input shape is validated by schema at route level
 
   const approverChain = await determineApprovers(tenantId, campusId, requesterUsername, requester_role);
   if (approverChain.length === 0) {
-    approverChain.push({ username: requesterUsername, role: requester_role });
+    const error = new Error('No approvers found in hierarchy for this leave request');
+    error.statusCode = 400;
+    throw error;
   }
 
   const createdRequest = await leaveModel.createLeaveRequest(tenantId, campusId, data);
@@ -76,6 +117,13 @@ const createLeaveRequest = async (tenantId, campusId, requesterUsername, payload
     step_order: idx + 1
   }));
   await leaveModel.createApprovalStepsBulk(createdRequest.id, stepItems);
+
+  if (String(requester_role) === 'Superadmin') {
+    await leaveModel.updateApproverStepStatus(tenantId, campusId, createdRequest.id, requesterUsername, 'approved', 'Auto-approved');
+    const updated = await leaveModel.recomputeOverallStatus(createdRequest.id);
+    return updated || createdRequest;
+  }
+
   return createdRequest;
 };
 
@@ -105,12 +153,20 @@ const getCompletedApprovals = async (tenantId, campusId, approverUsername) => {
 };
 
 const updateLeaveStatus = async (tenantId, campusId, id, status, status_reason, approverUsername) => {
-  if (!['pending','approved','rejected','cancelled'].includes(String(status))) {
-    throw new Error('Invalid status');
+  const request = await leaveModel.getLeaveRequestById(id);
+  if (!request) {
+    const error = new Error('Leave request not found');
+    error.statusCode = 404;
+    throw error;
   }
-  if (String(status) === 'rejected' && (!status_reason || String(status_reason).trim().length === 0)) {
-    throw new Error('status_reason is required for rejection');
+
+  const assigned = await leaveModel.isUserAssignedApproverForRequest(id, approverUsername);
+  if (!assigned) {
+    const error = new Error('Access denied. You are not authorized to update this request.');
+    error.statusCode = 403;
+    throw error;
   }
+
   const step = await leaveModel.updateApproverStepStatus(tenantId, campusId, id, approverUsername, status, status_reason);
   if (!step) return null;
   if (status === 'approved' || status === 'rejected') {

@@ -1,6 +1,6 @@
-const { pool } = require('../config/database');
 const logger = require('../utils/logger');
 const consolidatedAttendanceService = require('./consolidatedAttendance.service');
+const employeeModel = require('../models/employee.model');
 
 async function getPayrollReport(campusId, roles, yearName, startDate, endDate, tenantId) {
     try {
@@ -60,13 +60,8 @@ async function getPayrollReport(campusId, roles, yearName, startDate, endDate, t
         // Fetch salaries for all users in the map
         const usernames = Array.from(userMap.keys());
         if (usernames.length > 0) {
-            const salaryQuery = `
-                SELECT username, salary 
-                FROM employment_details 
-                WHERE username = ANY($1)
-            `;
-            const salaryRes = await pool.query(salaryQuery, [usernames]);
-            salaryRes.rows.forEach(row => {
+            const salaries = await employeeModel.getEmployeeSalaries(usernames);
+            salaries.forEach(row => {
                 if (userMap.has(row.username)) {
                     userMap.get(row.username).salary = parseFloat(row.salary || 0);
                 }

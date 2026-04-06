@@ -384,11 +384,15 @@ const SectionModel = {
                 const teacherQuery = `
                     SELECT u.user_id FROM users u
                     INNER JOIN user_statuses us ON u.username = us.username
-                    WHERE u.user_id = $1 AND u.role = 'Employee' 
-                    AND us.campus_id = $2 AND us.status = 'active'
+                    WHERE u.user_id = $1 AND u.role = ANY($2) 
+                    AND us.campus_id = $3 AND us.status = 'active'
                 `;
                 validations.push(
-                    client.query(teacherQuery, [sectionData.primary_teacher_user_id, sectionData.campus_id])
+                    client.query(teacherQuery, [
+                        sectionData.primary_teacher_user_id, 
+                        ['Teacher'],
+                        sectionData.campus_id
+                    ])
                         .then(result => ({
                             type: 'primary_teacher',
                             valid: result.rows.length > 0

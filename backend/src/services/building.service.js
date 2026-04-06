@@ -7,11 +7,6 @@ const buildingModel = require('../models/building.model');
  */
 const getAllBuildings = async (campusId) => {
     try {
-        // Enhanced campus ID validation
-        if (!campusId || campusId.toString().trim() === '' || campusId === 'undefined' || campusId === null) {
-            throw new Error('Valid campus ID is required');
-        }
-
         const buildings = await buildingModel.getAllBuildings(campusId);
         return buildings;
     } catch (error) {
@@ -25,30 +20,7 @@ const getAllBuildings = async (campusId) => {
  */
 const createBuilding = async (buildingData) => {
     try {
-        // Enhanced campus ID validation
-        if (!buildingData.campus_id || buildingData.campus_id.toString().trim() === '' || buildingData.campus_id === 'undefined' || buildingData.campus_id === null) {
-            throw new Error('Valid campus ID is required');
-        }
-
-        // Validate required fields
-        if (!buildingData.building_name || !buildingData.number_of_floors) {
-            throw new Error('Building name and number of floors are required');
-        }
-
-        // Validate building name
-        if (typeof buildingData.building_name !== 'string' || buildingData.building_name.trim().length === 0) {
-            throw new Error('Building name must be a non-empty string');
-        }
-
-        if (buildingData.building_name.trim().length > 100) {
-            throw new Error('Building name must be 100 characters or less');
-        }
-
-        // Validate number of floors
         const floors = parseInt(buildingData.number_of_floors);
-        if (isNaN(floors) || floors < 1 || floors > 200) {
-            throw new Error('Number of floors must be between 1 and 200');
-        }
 
         // Check if building name already exists in the campus
         const nameExists = await buildingModel.buildingNameExists(
@@ -84,34 +56,7 @@ const createBuilding = async (buildingData) => {
  */
 const updateBuilding = async (buildingId, buildingData, campusId) => {
     try {
-        // Enhanced validation
-        if (!buildingId || buildingId.toString().trim() === '' || buildingId === 'undefined' || buildingId === null) {
-            throw new Error('Valid building ID is required');
-        }
-
-        if (!campusId || campusId.toString().trim() === '' || campusId === 'undefined' || campusId === null) {
-            throw new Error('Valid campus ID is required');
-        }
-
-        // Validate required fields
-        if (!buildingData.building_name || !buildingData.number_of_floors) {
-            throw new Error('Building name and number of floors are required');
-        }
-
-        // Validate building name
-        if (typeof buildingData.building_name !== 'string' || buildingData.building_name.trim().length === 0) {
-            throw new Error('Building name must be a non-empty string');
-        }
-
-        if (buildingData.building_name.trim().length > 100) {
-            throw new Error('Building name must be 100 characters or less');
-        }
-
-        // Validate number of floors
         const floors = parseInt(buildingData.number_of_floors);
-        if (isNaN(floors) || floors < 1 || floors > 200) {
-            throw new Error('Number of floors must be between 1 and 200');
-        }
 
         // Check if building exists
         const existingBuilding = await buildingModel.getBuildingById(buildingId, campusId);
@@ -157,15 +102,6 @@ const updateBuilding = async (buildingId, buildingData, campusId) => {
  */
 const deleteBuilding = async (buildingId, campusId) => {
     try {
-        // Enhanced validation
-        if (!buildingId || buildingId.toString().trim() === '' || buildingId === 'undefined' || buildingId === null) {
-            throw new Error('Valid building ID is required');
-        }
-
-        if (!campusId || campusId.toString().trim() === '' || campusId === 'undefined' || campusId === null) {
-            throw new Error('Valid campus ID is required');
-        }
-
         // Check if building exists before attempting to delete
         const existingBuilding = await buildingModel.getBuildingById(buildingId, campusId);
         if (!existingBuilding) {
@@ -193,15 +129,6 @@ const deleteBuilding = async (buildingId, campusId) => {
  */
 const getBuildingById = async (buildingId, campusId) => {
     try {
-        // Enhanced validation
-        if (!buildingId || buildingId.toString().trim() === '' || buildingId === 'undefined' || buildingId === null) {
-            throw new Error('Valid building ID is required');
-        }
-
-        if (!campusId || campusId.toString().trim() === '' || campusId === 'undefined' || campusId === null) {
-            throw new Error('Valid campus ID is required');
-        }
-
         const building = await buildingModel.getBuildingById(buildingId, campusId);
         return building;
     } catch (error) {

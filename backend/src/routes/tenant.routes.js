@@ -2,6 +2,8 @@ const express = require('express');
 const tenantController = require('../controllers/tenant.controller');
 const { authenticate, requirePermission } = require('../middleware/auth');
 const { PERMISSIONS } = require('../config/permissions');
+const validate = require('../middleware/validation');
+const tenantSchema = require('../schemas/tenant.schema');
 
 const router = express.Router();
 
@@ -13,25 +15,25 @@ const router = express.Router();
  * Register a new tenant (school) with admin user
  * This is the main tenant registration endpoint
  */
-router.post('/register-tenant', tenantController.registerTenant);
+router.post('/register-tenant', validate(tenantSchema.registerTenant), tenantController.registerTenant);
 
 /**
  * GET /api/tenants/check-subdomain/:subdomain
  * Check if subdomain is available
  */
-router.get('/check-subdomain/:subdomain', tenantController.checkSubdomainAvailability);
+router.get('/check-subdomain/:subdomain', validate(tenantSchema.checkSubdomainAvailability), tenantController.checkSubdomainAvailability);
 
 /**
  * GET /api/tenants/check-email/:email
  * Check if email is available
  */
-router.get('/check-email/:email', tenantController.checkEmailAvailability);
+router.get('/check-email/:email', validate(tenantSchema.checkEmailAvailability), tenantController.checkEmailAvailability);
 
 /**
  * GET /api/tenants/subdomain/:subdomain
  * Get tenant information by subdomain
  */
-router.get('/subdomain/:subdomain', tenantController.getTenantBySubdomain);
+router.get('/subdomain/:subdomain', validate(tenantSchema.getTenantBySubdomain), tenantController.getTenantBySubdomain);
 
 // ==================== PROTECTED ROUTES ====================
 // These routes require authentication
@@ -44,6 +46,7 @@ router.get(
   '/',
   authenticate,
   requirePermission(PERMISSIONS.TENANT_LIST_READ),
+  validate(tenantSchema.getAllTenants),
   tenantController.getAllTenants
 );
 
@@ -55,6 +58,7 @@ router.get(
   '/:tenantId',
   authenticate,
   requirePermission(PERMISSIONS.TENANT_ITEM_READ),
+  validate(tenantSchema.getTenantById),
   tenantController.getTenantById
 );
 
@@ -66,6 +70,7 @@ router.put(
   '/:tenantId',
   authenticate,
   requirePermission(PERMISSIONS.TENANT_EDIT),
+  validate(tenantSchema.updateTenant),
   tenantController.updateTenant
 );
 
@@ -77,6 +82,7 @@ router.get(
   '/:tenantId/statistics',
   authenticate,
   requirePermission(PERMISSIONS.TENANT_STATISTICS_READ),
+  validate(tenantSchema.getTenantStatistics),
   tenantController.getTenantStatistics
 );
 

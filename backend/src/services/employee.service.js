@@ -19,34 +19,6 @@ const createEmployee = async (employeeData, context) => {
         employeeId: employeeData?.employment?.employee_id
     });
 
-    // Validate required data structure
-    if (!employeeData.user || !employeeData.contact || !employeeData.employment) {
-        throw new Error('Missing required employee data sections (user, contact, employment)');
-    }
-
-    // Validate required fields
-    const requiredUserFields = ['first_name', 'last_name', 'date_of_birth'];
-    const requiredContactFields = ['email'];
-    const requiredEmploymentFields = ['employee_id', 'designation', 'department', 'joining_date'];
-
-    for (const field of requiredUserFields) {
-        if (!employeeData.user[field]) {
-            throw new Error(`Missing required user field: ${field}`);
-        }
-    }
-
-    for (const field of requiredContactFields) {
-        if (!employeeData.contact[field]) {
-            throw new Error(`Missing required contact field: ${field}`);
-        }
-    }
-
-    for (const field of requiredEmploymentFields) {
-        if (!employeeData.employment[field]) {
-            throw new Error(`Missing required employment field: ${field}`);
-        }
-    }
-
     const client = await pool.connect();
 
     try {
@@ -455,17 +427,6 @@ const getEmployeeStatistics = async (context, campusId = null) => {
     });
 
     try {
-        // Validate context
-        if (!context) {
-            logger.error('SERVICE: No context provided');
-            throw new Error('User context is required');
-        }
-
-        if (!context.tenant_id) {
-            logger.error('SERVICE: No tenant_id in context', { context });
-            throw new Error('Tenant ID is required');
-        }
-
         const targetCampusId = context.campus_id || campusId || null;
         
         logger.info('SERVICE: Determined target campus ID', {

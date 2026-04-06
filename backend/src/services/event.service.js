@@ -1,6 +1,7 @@
 const EventModel = require('../models/event.model');
 const { ExamService } = require('./exam.service');
 const { getAcademicYearById } = require('./academic.service');
+const { pool } = require('../config/database');
 
 // Map frequency array (['Monday', 'Friday']) to RRULE string
 const createWeeklyRRuleFromFrequency = (repeat, frequency, untilIso) => {
@@ -138,13 +139,36 @@ const extractTimeFromISO = (isoString) => {
   }
 };
 
+const toDateOnlyString = (value) => {
+    if (!value) return null;
+    if (typeof value === 'string') {
+        const trimmed = value.trim();
+        if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed;
+        if (trimmed.length >= 10 && /^\d{4}-\d{2}-\d{2}/.test(trimmed)) return trimmed.slice(0, 10);
+        return null;
+    }
+    if (value instanceof Date) {
+        if (isNaN(value.getTime())) return null;
+        const y = value.getFullYear();
+        const m = String(value.getMonth() + 1).padStart(2, '0');
+        const d = String(value.getDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
+    }
+    return toDateOnlyString(String(value));
+};
+
 // Helper to generate dates from RRULE (Simple Weekly/Daily support only)
 const getDatesFromRRule = (rrule, startDate, endDate) => {
     const dates = [];
     if (!rrule || !startDate || !endDate) return dates;
     
-    const start = new Date(startDate);
-    const end = new Date(endDate);
+    const startStr = toDateOnlyString(startDate);
+    const endStr = toDateOnlyString(endDate);
+    if (!startStr || !endStr) return dates;
+    const [sy, sm, sd] = startStr.split('-').map(Number);
+    const [ey, em, ed] = endStr.split('-').map(Number);
+    const start = new Date(sy, sm - 1, sd);
+    const end = new Date(ey, em - 1, ed);
     
     // Parse RRULE
     // Supported: FREQ=WEEKLY;BYDAY=MO,TU,...
@@ -155,7 +179,8 @@ const getDatesFromRRule = (rrule, startDate, endDate) => {
     if (freq === 'DAILY') {
          const current = new Date(start);
          while (current <= end) {
-             dates.push(new Date(current));
+             const d = toDateOnlyString(current);
+             if (d) dates.push(d);
              current.setDate(current.getDate() + 1);
          }
          return dates;
@@ -173,7 +198,8 @@ const getDatesFromRRule = (rrule, startDate, endDate) => {
     const current = new Date(start);
     while (current <= end) {
         if (targetDays.includes(current.getDay())) {
-            dates.push(new Date(current));
+            const d = toDateOnlyString(current);
+            if (d) dates.push(d);
         }
         current.setDate(current.getDate() + 1);
     }
@@ -183,71 +209,83 @@ const getDatesFromRRule = (rrule, startDate, endDate) => {
 
 const EventService = {
   createEvent: async (eventData, tenantId, campusId, userId) => {
-    // Generate recurrence_rule if not provided but frequency is
-    if (!eventData.recurrence_rule && eventData.repeat && eventData.frequency) {
-        eventData.recurrence_rule = createWeeklyRRuleFromFrequency(eventData.repeat, eventData.frequency, eventData.until);
-    }
-
-    // Fix time format
-    if (eventData.start_time) {
-        // If it's an ISO string, we can extract the date part too
-        if (eventData.start_time.includes('T')) {
-             const { date, time } = toISTDateTimeParts(eventData.start_time);
-             if (date && time) {
-                 eventData.start_date = date;
-                 eventData.start_time = time;
-             }
-        } else {
-             eventData.start_time = extractTimeFromISO(eventData.start_time);
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+        
+        // Generate recurrence_rule if not provided but frequency is
+        if (!eventData.recurrence_rule && eventData.repeat && eventData.frequency) {
+            eventData.recurrence_rule = createWeeklyRRuleFromFrequency(eventData.repeat, eventData.frequency, eventData.until);
         }
-    }
-    if (eventData.end_time) {
-        if (eventData.end_time.includes('T')) {
-             const { date, time } = toISTDateTimeParts(eventData.end_time);
-             if (date && time) {
-                 eventData.end_date = date;
-                 eventData.end_time = time;
-             }
-        } else {
-             eventData.end_time = extractTimeFromISO(eventData.end_time);
+
+        // Fix time format
+        if (eventData.start_time) {
+            if (eventData.start_time.includes('T')) {
+                 const { date, time } = toISTDateTimeParts(eventData.start_time);
+                 if (date && time) {
+                     eventData.start_date = date;
+                     eventData.start_time = time;
+                 }
+            } else {
+                 eventData.start_time = extractTimeFromISO(eventData.start_time);
+            }
         }
-    }
-    
-    // Map description to event_description if missing
-    if (eventData.description && !eventData.event_description) {
-        eventData.event_description = eventData.description;
-    }
-
-    // Add context data
-    const data = {
-      ...eventData,
-      tenant_id: tenantId,
-      campus_id: campusId,
-      scheduled_by: userId
-    };
-
-    const newEvent = await EventModel.createEvent(data);
-
-    // If event type is Test, create an exam record
-    if (eventData.event_type === 'Test' || eventData.eventType === 'Test') {
-        try {
-            await ExamService.createExam({
-                tenant_id: tenantId,
-                campus_id: campusId,
-                event_id: newEvent.event_id,
-                subject_name: eventData.subject_name || eventData.event_name,
-                exam_date: newEvent.start_date, // Use the event date
-                total_score: eventData.total_score
-            }, tenantId, campusId);
-        } catch (error) {
-            console.error('Failed to create exam for Test event:', error);
-            // Optionally rollback or just log? 
-            // For now, we log, as the event is already created. 
-            // Ideally should be a transaction but that requires refactoring createEvent to accept a client.
+        if (eventData.end_time) {
+            if (eventData.end_time.includes('T')) {
+                 const { date, time } = toISTDateTimeParts(eventData.end_time);
+                 if (date && time) {
+                     eventData.end_date = date;
+                     eventData.end_time = time;
+                 }
+            } else {
+                 eventData.end_time = extractTimeFromISO(eventData.end_time);
+            }
         }
-    }
+        
+        // Map description to event_description if missing
+        if (eventData.description && !eventData.event_description) {
+            eventData.event_description = eventData.description;
+        }
 
-    return newEvent;
+        // Add context data
+        const data = {
+          ...eventData,
+          tenant_id: tenantId,
+          campus_id: campusId,
+          scheduled_by: userId
+        };
+
+        const newEvent = await EventModel.createEvent(data, client);
+
+        if (eventData.event_type === 'Test') {
+            const subjectName = eventData.subject_name || eventData.event_name;
+            const dates = eventData.recurrence_rule
+                ? getDatesFromRRule(eventData.recurrence_rule, newEvent.start_date, newEvent.end_date)
+                : [];
+            const dateStrs = (Array.isArray(dates) && dates.length > 0)
+                ? dates
+                : [toDateOnlyString(newEvent.start_date) || String(newEvent.start_date)];
+
+            for (const examDate of dateStrs) {
+                await ExamService.createExam({
+                    tenant_id: tenantId,
+                    campus_id: campusId,
+                    event_id: newEvent.event_id,
+                    subject_name: subjectName,
+                    exam_date: examDate,
+                    total_score: eventData.total_score
+                }, tenantId, campusId, client);
+            }
+        }
+        
+        await client.query('COMMIT');
+        return newEvent;
+    } catch (error) {
+        await client.query('ROLLBACK');
+        throw error;
+    } finally {
+        client.release();
+    }
   },
 
   updateEvent: async (eventId, eventData, mode, instanceDate, tenantId, campusId, userId) => {
@@ -300,6 +338,12 @@ const EventService = {
         
         // We need to know what changed. 
         // If it's a cancellation, eventData.is_cancelled should be true.
+
+        if (eventData.event_type !== undefined) {
+            await EventModel.updateEvent(eventId, {
+                event_type: eventData.event_type
+            });
+        }
         
         const instanceData = {
             event_id: eventId,
@@ -319,7 +363,54 @@ const EventService = {
     } else {
         // Scenario 3: Update all recurrence events (or simple update for non-recurring)
         // Just update calendar_events
-        return await EventModel.updateEvent(eventId, eventData);
+        const updatedEvent = await EventModel.updateEvent(eventId, eventData);
+
+        const finalEventType = eventData.event_type || updatedEvent.event_type;
+
+        if (finalEventType === 'Test') {
+            const subjectName = eventData.subject_name || updatedEvent.event_name;
+            const totalScore = eventData.total_score !== undefined ? eventData.total_score : undefined;
+            const recurrenceRule = eventData.recurrence_rule || updatedEvent.recurrence_rule;
+            const startDate = eventData.start_date || updatedEvent.start_date;
+            const endDate = eventData.end_date || updatedEvent.end_date;
+
+            const desiredDates = recurrenceRule
+                ? getDatesFromRRule(recurrenceRule, startDate, endDate)
+                : [];
+            const desired = desiredDates.length > 0 ? desiredDates : [toDateOnlyString(startDate) || String(startDate)];
+
+            const existing = await ExamService.getExamsByEventId(eventId);
+            const existingByDate = new Map();
+            for (const ex of (existing || [])) {
+                const d = ex.exam_date ? toDateOnlyString(ex.exam_date) : null;
+                if (d) existingByDate.set(d, ex);
+            }
+
+            for (const d of desired) {
+                const ex = existingByDate.get(d);
+                if (ex) {
+                    const update = {};
+                    if (eventData.subject_name !== undefined) update.subject_name = subjectName;
+                    if (eventData.total_score !== undefined) update.total_score = totalScore;
+                    if (Object.keys(update).length > 0) {
+                        await ExamService.updateExam(ex.exam_id, update);
+                    }
+                } else {
+                    await ExamService.createExam({
+                        tenant_id: tenantId,
+                        campus_id: campusId,
+                        event_id: eventId,
+                        subject_name: subjectName,
+                        exam_date: d,
+                        total_score: totalScore
+                    }, tenantId, campusId);
+                }
+            }
+        } else {
+            await ExamService.deleteExamsByEventId(eventId);
+        }
+        
+        return updatedEvent;
     }
   },
 

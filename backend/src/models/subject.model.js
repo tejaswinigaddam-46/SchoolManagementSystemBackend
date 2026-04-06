@@ -4,10 +4,6 @@ const logger = require('../utils/logger');
 const subjectModel = {
   // Get all subjects for a campus
   getAllSubjects: async (campusId, filters = {}) => {
-    if (!campusId || campusId.toString().trim() === '' || campusId === 'undefined' || campusId === null) {
-      throw new Error('Valid campus ID is required');
-    }
-
     let query = `
       SELECT 
         s.subject_id,
@@ -52,14 +48,6 @@ const subjectModel = {
 
   // Get subject by ID
   getSubjectById: async (campusId, subjectId) => {
-    if (!campusId || campusId.toString().trim() === '' || campusId === 'undefined' || campusId === null) {
-      throw new Error('Valid campus ID is required');
-    }
-
-    if (!subjectId || subjectId.toString().trim() === '' || subjectId === 'undefined' || subjectId === null) {
-      throw new Error('Valid subject ID is required');
-    }
-
     const query = `
       SELECT 
         s.subject_id,
@@ -86,10 +74,6 @@ const subjectModel = {
 
   // Create new subject
   createSubject: async (subjectData) => {
-    if (!subjectData.campus_id || subjectData.campus_id.toString().trim() === '' || subjectData.campus_id === 'undefined' || subjectData.campus_id === null) {
-      throw new Error('Valid campus ID is required');
-    }
-
     const query = `
       INSERT INTO subjects 
       (campus_id, curriculum_id, subject_name, subject_code, category)
@@ -116,10 +100,6 @@ const subjectModel = {
 
   // Update existing subject
   updateSubject: async (subjectId, subjectData) => {
-    if (!subjectId || subjectId.toString().trim() === '' || subjectId === 'undefined' || subjectId === null) {
-      throw new Error('Valid subject ID is required');
-    }
-
     // Build dynamic query based on provided fields
     const updateFields = [];
     const values = [];
@@ -168,10 +148,6 @@ const subjectModel = {
 
   // Delete subject
   deleteSubject: async (subjectId) => {
-    if (!subjectId || subjectId.toString().trim() === '' || subjectId === 'undefined' || subjectId === null) {
-      throw new Error('Valid subject ID is required');
-    }
-
     const query = `
       DELETE FROM subjects 
       WHERE subject_id = $1
@@ -189,18 +165,6 @@ const subjectModel = {
 
   // Check if subject exists by name for campus and curriculum combination
   checkSubjectExists: async (campusId, curriculumId, subjectName, excludeId = null) => {
-    if (!campusId || campusId.toString().trim() === '' || campusId === 'undefined' || campusId === null) {
-      throw new Error('Valid campus ID is required');
-    }
-
-    if (!curriculumId || curriculumId.toString().trim() === '' || curriculumId === 'undefined' || curriculumId === null) {
-      throw new Error('Valid curriculum ID is required');
-    }
-
-    if (!subjectName || subjectName.toString().trim() === '') {
-      throw new Error('Valid subject name is required');
-    }
-
     let query = `
       SELECT subject_id FROM subjects 
       WHERE campus_id = $1 AND curriculum_id = $2 AND LOWER(subject_name) = LOWER($3)
@@ -226,10 +190,6 @@ const subjectModel = {
 
   // Check if subject is being used in enrollments/classes
   checkSubjectInUse: async (subjectId) => {
-    if (!subjectId || subjectId.toString().trim() === '' || subjectId === 'undefined' || subjectId === null) {
-      throw new Error('Valid subject ID is required');
-    }
-
     // Check if subject is referenced in other tables
     // This is a placeholder - you would check actual related tables like:
     // - student_subjects

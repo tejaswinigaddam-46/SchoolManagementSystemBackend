@@ -4,7 +4,7 @@ const { successResponse, errorResponse, createdResponse } = require('../utils/re
 const createLeave = async (req, res) => {
   try {
     const { tenantId, campusId, username } = req.user;
-    const payload = req.body || {};
+    const payload = req.body;
     const created = await leaveService.createLeaveRequest(tenantId, campusId, username, payload);
     return createdResponse(res, created, 'Leave request created with status pending');
   } catch (err) {
@@ -48,23 +48,13 @@ const updateStatus = async (req, res) => {
     const { id } = req.params;
     const { status, status_reason } = req.body;
 
-    const request = await require('../models/leave.model').getLeaveRequestById(id);
-    if (!request) {
-      return errorResponse(res, 'Leave request not found', 404);
-    }
-
-    const assigned = await require('../models/leave.model').isUserAssignedApproverForRequest(id, username);
-    if (!assigned) {
-      return errorResponse(res, 'Access denied. You are not authorized to update this request.', 403);
-    }
-
     const updated = await leaveService.updateLeaveStatus(tenantId, campusId, id, status, status_reason, username);
     if (!updated) {
       return errorResponse(res, 'Leave request update failed', 500);
     }
     return successResponse(res, 'Leave status updated', updated);
   } catch (err) {
-    return errorResponse(res, err.message || 'Failed to update leave status', 400);
+    return errorResponse(res, err.message || 'Failed to update leave status', err.statusCode || 400);
   }
 };
 

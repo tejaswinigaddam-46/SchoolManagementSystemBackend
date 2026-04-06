@@ -6,11 +6,6 @@ const { pool } = require('../config/database');
  * Get all buildings for a specific campus
  */
 const getAllBuildings = async (campusId) => {
-    // Enhanced campus ID validation
-    if (!campusId || campusId.toString().trim() === '' || campusId === 'undefined' || campusId === null) {
-        throw new Error('Valid campus ID is required');
-    }
-
     const query = `
         SELECT * FROM buildings 
         WHERE campus_id = $1
@@ -30,11 +25,6 @@ const getAllBuildings = async (campusId) => {
  * Create a new building
  */
 const createBuilding = async (buildingData) => {
-    // Enhanced campus ID validation
-    if (!buildingData.campus_id || buildingData.campus_id.toString().trim() === '' || buildingData.campus_id === 'undefined' || buildingData.campus_id === null) {
-        throw new Error('Valid campus ID is required');
-    }
-
     const query = `
         INSERT INTO buildings 
         (campus_id, building_name, number_of_floors)
@@ -64,16 +54,6 @@ const createBuilding = async (buildingData) => {
  * Update a building by ID for a specific campus
  */
 const updateBuilding = async (buildingId, buildingData, campusId) => {
-    // Enhanced campus ID validation
-    if (!campusId || campusId.toString().trim() === '' || campusId === 'undefined' || campusId === null) {
-        throw new Error('Valid campus ID is required');
-    }
-
-    // Enhanced building ID validation
-    if (!buildingId || buildingId.toString().trim() === '' || buildingId === 'undefined' || buildingId === null) {
-        throw new Error('Valid building ID is required');
-    }
-
     const query = `
         UPDATE buildings 
         SET building_name = $1, number_of_floors = $2
@@ -104,16 +84,6 @@ const updateBuilding = async (buildingId, buildingData, campusId) => {
  * Delete a building by ID for a specific campus
  */
 const deleteBuilding = async (buildingId, campusId) => {
-    // Enhanced campus ID validation
-    if (!campusId || campusId.toString().trim() === '' || campusId === 'undefined' || campusId === null) {
-        throw new Error('Valid campus ID is required');
-    }
-
-    // Enhanced building ID validation
-    if (!buildingId || buildingId.toString().trim() === '' || buildingId === 'undefined' || buildingId === null) {
-        throw new Error('Valid building ID is required');
-    }
-
     const query = `
         DELETE FROM buildings 
         WHERE building_id = $1 AND campus_id = $2
@@ -133,16 +103,6 @@ const deleteBuilding = async (buildingId, campusId) => {
  * Get a building by ID for a specific campus
  */
 const getBuildingById = async (buildingId, campusId) => {
-    // Enhanced campus ID validation
-    if (!campusId || campusId.toString().trim() === '' || campusId === 'undefined' || campusId === null) {
-        throw new Error('Valid campus ID is required');
-    }
-
-    // Enhanced building ID validation
-    if (!buildingId || buildingId.toString().trim() === '' || buildingId === 'undefined' || buildingId === null) {
-        throw new Error('Valid building ID is required');
-    }
-
     const query = `
         SELECT * FROM buildings 
         WHERE building_id = $1 AND campus_id = $2;
@@ -161,11 +121,6 @@ const getBuildingById = async (buildingId, campusId) => {
  * Check if building name exists in campus (for validation)
  */
 const buildingNameExists = async (buildingName, campusId, excludeBuildingId = null) => {
-    // Enhanced campus ID validation
-    if (!campusId || campusId.toString().trim() === '' || campusId === 'undefined' || campusId === null) {
-        throw new Error('Valid campus ID is required');
-    }
-
     let query = `
         SELECT building_id FROM buildings 
         WHERE LOWER(building_name) = LOWER($1) AND campus_id = $2

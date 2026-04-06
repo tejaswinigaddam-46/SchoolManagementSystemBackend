@@ -27,8 +27,6 @@ const ExamResultService = {
     // We can optimize by fetching exam details once if all results are for the same exam
     // But assuming mixed, we might need to fetch. 
     // Usually bulk save is for one exam. Let's check if exam_id is same.
-    
-    if (!resultsData || resultsData.length === 0) return [];
 
     const examIds = [...new Set(resultsData.map(r => r.exam_id))];
     const examMap = {};

@@ -1837,6 +1837,393 @@ const getStudentsBySection = async (tenantId, campusId, academicYearId, classId,
     }
 };
 
+const getStudentsByFilters = async (filters, client = pool) => {
+    try {
+        const { tenantId, campusId, academic_year_id, class_id, assignment_status, include_parents } = filters;
+        logger.info('MODEL: Getting students by filters', {
+            tenantId,
+            campusId,
+            academic_year_id,
+            class_id,
+            assignment_status,
+            include_parents
+        });
+
+        let query;
+        let params;
+
+        if (assignment_status === 'unassigned') {
+            query = `
+                SELECT DISTINCT 
+                    u.user_id,
+                    u.username,
+                    u.first_name,
+                    u.middle_name,
+                    u.last_name,
+                    se.admission_number,
+                    se.academic_year_id,
+                    c.class_name,
+                    se.section_id,
+                    se.roll_number,
+                    se.admission_date
+                FROM users u
+                INNER JOIN student_enrollment se ON u.username = se.username
+                INNER JOIN user_statuses us ON u.username = us.username AND us.campus_id = se.campus_id
+                INNER JOIN classes c ON se.class_id = c.class_id
+                WHERE u.tenant_id = $1 
+                    AND se.campus_id = $2
+                    AND se.academic_year_id = $3
+                    AND c.class_id = $4
+                    AND u.role = 'Student'
+                    AND us.status = 'active'
+                    AND (se.section_id IS NULL OR se.section_id = 0)
+                ORDER BY u.first_name, u.last_name
+            `;
+        } else {
+            if (include_parents) {
+                query = `
+                    SELECT 
+                        u.user_id,
+                        u.username,
+                        u.first_name,
+                        u.middle_name,
+                        u.last_name,
+                        se.admission_number,
+                        se.academic_year_id,
+                        c.class_name,
+                        se.section_id,
+                        cs.section_name,
+                        se.roll_number,
+                        se.admission_date,
+                        COALESCE(
+                            json_agg(
+                                json_build_object(
+                                    'user_id', p.user_id,
+                                    'username', p.username,
+                                    'first_name', p.first_name,
+                                    'last_name', p.last_name,
+                                    'relationship', spr.relationship_type,
+                                    'phone', p.phone_number
+                                ) ORDER BY p.first_name
+                            ) FILTER (WHERE spr.parent_username IS NOT NULL),
+                            '[]'
+                        ) as parents
+                    FROM users u
+                    INNER JOIN student_enrollment se ON u.username = se.username
+                    INNER JOIN user_statuses us ON u.username = us.username AND us.campus_id = se.campus_id
+                    INNER JOIN classes c ON se.class_id = c.class_id
+                    LEFT JOIN class_sections cs ON se.section_id = cs.section_id
+                    LEFT JOIN student_parent_relations spr ON u.username = spr.student_username
+                    LEFT JOIN users p ON spr.parent_username = p.username
+                    WHERE u.tenant_id = $1 
+                        AND se.campus_id = $2
+                        AND se.academic_year_id = $3
+                        AND c.class_id = $4
+                        AND u.role = 'Student'
+                        AND us.status = 'active'
+                        AND se.section_id IS NOT NULL 
+                        AND se.section_id > 0
+                    GROUP BY u.user_id, u.username, u.first_name, u.middle_name, u.last_name, se.admission_number, se.academic_year_id, c.class_name, se.section_id, cs.section_name, se.roll_number, se.admission_date
+                    ORDER BY u.first_name, u.last_name
+                `;
+            } else {
+                query = `
+                    SELECT DISTINCT 
+                        u.user_id,
+                        u.username,
+                        u.first_name,
+                        u.middle_name,
+                        u.last_name,
+                        se.admission_number,
+                        se.academic_year_id,
+                        c.class_name,
+                        se.section_id,
+                        cs.section_name,
+                        se.roll_number,
+                        se.admission_date
+                    FROM users u
+                    INNER JOIN student_enrollment se ON u.username = se.username
+                    INNER JOIN user_statuses us ON u.username = us.username AND us.campus_id = se.campus_id
+                    INNER JOIN classes c ON se.class_id = c.class_id
+                    LEFT JOIN class_sections cs ON se.section_id = cs.section_id
+                    WHERE u.tenant_id = $1 
+                        AND se.campus_id = $2
+                        AND se.academic_year_id = $3
+                        AND c.class_id = $4
+                        AND u.role = 'Student'
+                        AND us.status = 'active'
+                        AND se.section_id IS NOT NULL 
+                        AND se.section_id > 0
+                    ORDER BY u.first_name, u.last_name
+                `;
+            }
+        }
+
+        params = [tenantId, campusId, academic_year_id, class_id];
+        const result = await client.query(query, params);
+        return result.rows;
+    } catch (error) {
+        logger.error('MODEL: Error getting students by filters', error);
+        throw error;
+    }
+};
+
+const assignStudentsToSectionWithClient = async (client, { tenantId, campusId, student_ids, section_id, academic_year_id, class_id }) => {
+    const sectionQuery = `
+        SELECT cs.section_id, cs.section_name, cs.class_id, cs.academic_year_id
+        FROM class_sections cs
+        WHERE cs.section_id = $1 
+            AND cs.class_id = $2 
+            AND cs.academic_year_id = $3
+            AND cs.campus_id = $4
+    `;
+    const sectionResult = await client.query(sectionQuery, [section_id, class_id, academic_year_id, campusId]);
+    if (sectionResult.rows.length === 0) {
+        throw new Error('Section not found or does not match the specified class and academic year');
+    }
+
+    const section = sectionResult.rows[0];
+
+    const studentCheckQuery = `
+        SELECT DISTINCT 
+            u.user_id,
+            u.username,
+            se.admission_number,
+            se.section_id as current_section_id
+        FROM users u
+        INNER JOIN student_enrollment se ON u.username = se.username
+        INNER JOIN classes c ON se.class_id = c.class_id
+        INNER JOIN user_statuses us ON u.username = us.username AND us.campus_id = se.campus_id
+        WHERE u.tenant_id = $1 
+            AND se.campus_id = $2
+            AND se.academic_year_id = $3
+            AND c.class_id = $4
+            AND u.role = 'Student'
+            AND us.status = 'active'
+            AND u.user_id = ANY($5)
+    `;
+
+    const studentCheckResult = await client.query(studentCheckQuery, [
+        tenantId,
+        campusId,
+        academic_year_id,
+        class_id,
+        student_ids
+    ]);
+
+    if (studentCheckResult.rows.length !== student_ids.length) {
+        throw new Error('Some students not found or not eligible for assignment');
+    }
+
+    const alreadyAssigned = studentCheckResult.rows.filter(student =>
+        student.current_section_id && student.current_section_id !== null && student.current_section_id > 0
+    );
+
+    if (alreadyAssigned.length > 0) {
+        const assignedAdmissions = alreadyAssigned.map(s => s.admission_number).join(', ');
+        throw new Error(`Some students are already assigned to sections: ${assignedAdmissions}`);
+    }
+
+    const usernames = studentCheckResult.rows.map(student => student.username);
+
+    const updateQuery = `
+        UPDATE student_enrollment 
+        SET section_id = $1
+        WHERE username = ANY($2)
+            AND campus_id = $3
+            AND academic_year_id = $4
+        RETURNING admission_number, username, section_id
+    `;
+
+    const updateResult = await client.query(updateQuery, [
+        section_id,
+        usernames,
+        campusId,
+        academic_year_id
+    ]);
+
+    return {
+        assignedCount: updateResult.rows.length,
+        updatedStudents: updateResult.rows,
+        section: {
+            section_id: section.section_id,
+            section_name: section.section_name
+        }
+    };
+};
+
+const updateStudentSectionAssignment = async (studentId, sectionId, tenantId, campusId, client = pool) => {
+    const studentQuery = `
+        SELECT DISTINCT 
+            u.user_id,
+            u.username,
+            se.admission_number,
+            se.academic_year_id,
+            c.class_name,
+            se.section_id as current_section_id,
+            c.class_id
+        FROM users u
+        INNER JOIN student_enrollment se ON u.username = se.username
+        INNER JOIN classes c ON se.class_id = c.class_id
+        INNER JOIN user_statuses us ON u.username = us.username AND us.campus_id = se.campus_id
+        WHERE u.user_id = $1 
+            AND u.tenant_id = $2
+            AND se.campus_id = $3
+            AND u.role = 'Student'
+            AND us.status = 'active'
+    `;
+
+    const studentResult = await client.query(studentQuery, [studentId, tenantId, campusId]);
+    if (studentResult.rows.length === 0) {
+        throw new Error('Student not found or not eligible for section assignment');
+    }
+
+    const student = studentResult.rows[0];
+
+    const sectionQuery = `
+        SELECT cs.section_id, cs.section_name, cs.class_id, cs.academic_year_id
+        FROM class_sections cs
+        WHERE cs.section_id = $1 
+            AND cs.class_id = $2 
+            AND cs.academic_year_id = $3
+            AND cs.campus_id = $4
+    `;
+    const sectionResult = await client.query(sectionQuery, [
+        sectionId,
+        student.class_id,
+        student.academic_year_id,
+        campusId
+    ]);
+    if (sectionResult.rows.length === 0) {
+        throw new Error('Section not found or does not match student\'s class and academic year');
+    }
+
+    const section = sectionResult.rows[0];
+
+    const updateQuery = `
+        UPDATE student_enrollment 
+        SET section_id = $1
+        WHERE username = $2
+            AND campus_id = $3
+            AND academic_year_id = $4
+        RETURNING admission_number, username, section_id
+    `;
+
+    const updateResult = await client.query(updateQuery, [
+        sectionId,
+        student.username,
+        campusId,
+        student.academic_year_id
+    ]);
+
+    if (updateResult.rows.length === 0) {
+        throw new Error('Failed to update student section assignment');
+    }
+
+    return {
+        studentId,
+        username: student.username,
+        admissionNumber: student.admission_number,
+        section: {
+            section_id: section.section_id,
+            section_name: section.section_name
+        },
+        previousSectionId: student.current_section_id
+    };
+};
+
+const deassignStudentSectionAssignment = async (studentId, tenantId, campusId, client = pool) => {
+    const studentQuery = `
+        SELECT DISTINCT 
+            u.user_id,
+            u.username,
+            se.admission_number,
+            se.academic_year_id,
+            se.section_id as current_section_id,
+            cs.section_name as current_section_name
+        FROM users u
+        INNER JOIN student_enrollment se ON u.username = se.username
+        INNER JOIN user_statuses us ON u.username = us.username AND us.campus_id = se.campus_id
+        LEFT JOIN class_sections cs ON se.section_id = cs.section_id
+        WHERE u.user_id = $1 
+            AND u.tenant_id = $2
+            AND se.campus_id = $3
+            AND u.role = 'Student'
+            AND us.status = 'active'
+    `;
+
+    const studentResult = await client.query(studentQuery, [studentId, tenantId, campusId]);
+    if (studentResult.rows.length === 0) {
+        throw new Error('Student not found');
+    }
+
+    const student = studentResult.rows[0];
+    if (!student.current_section_id) {
+        throw new Error('Student is not currently assigned to any section');
+    }
+
+    const updateQuery = `
+        UPDATE student_enrollment 
+        SET section_id = NULL
+        WHERE username = $1
+            AND campus_id = $2
+            AND academic_year_id = $3
+        RETURNING admission_number, username, section_id
+    `;
+
+    const updateResult = await client.query(updateQuery, [
+        student.username,
+        campusId,
+        student.academic_year_id
+    ]);
+
+    if (updateResult.rows.length === 0) {
+        throw new Error('Failed to deassign student from section');
+    }
+
+    return {
+        studentId,
+        username: student.username,
+        admissionNumber: student.admission_number,
+        previousSection: {
+            section_id: student.current_section_id,
+            section_name: student.current_section_name
+        },
+        message: 'Student successfully deassigned from section'
+    };
+};
+
+const getEnrolledUsernamesByClass = async (client, campusId, academicYearId, classId) => {
+    const query = `
+        SELECT username 
+        FROM student_enrollment 
+        WHERE campus_id = $1 AND academic_year_id = $2 AND class_id = $3
+    `;
+    try {
+        const result = await client.query(query, [campusId, academicYearId, classId]);
+        return result.rows;
+    } catch (error) {
+        logger.error('Error getting enrolled usernames by class:', error);
+        throw error;
+    }
+};
+
+const getStudentDetailsForTenant = async (tenantId) => {
+    const query = `
+        SELECT u.username, u.first_name, u.last_name, se.admission_number
+        FROM users u
+        JOIN student_enrollment se ON u.username = se.username
+        WHERE u.tenant_id = $1
+    `;
+    try {
+        const result = await pool.query(query, [tenantId]);
+        return result.rows;
+    } catch (error) {
+        logger.error('Error getting student details for tenant:', error);
+        throw error;
+    }
+};
+
 module.exports = {
     createStudentWithClient,
     findStudentByAdmissionNumber,
@@ -1854,5 +2241,11 @@ module.exports = {
     removeParentFromStudent,
     updateParentRelationship,
     resolveAcademicYearId,
-    getStudentsBySection // Export the new method
+    getStudentsBySection,
+    getStudentsByFilters,
+    assignStudentsToSectionWithClient,
+    updateStudentSectionAssignment,
+    deassignStudentSectionAssignment,
+    getEnrolledUsernamesByClass,
+    getStudentDetailsForTenant
 };

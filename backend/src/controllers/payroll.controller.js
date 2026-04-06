@@ -3,8 +3,8 @@ const logger = require('../utils/logger');
 
 async function getPayrollReport(req, res) {
     try {
-        const tenantId = req.user?.tenant_id || req.user?.tenantId || req.tenantId;
-        const campusId = req.user?.campus_id || req.user?.campusId || req.campusId;
+        const tenantId = req.user?.tenant_id;
+        const campusId = req.user?.campus_id;
         const { roles, academicYear, fromDate, toDate } = req.body;
 
         logger.info('PayrollController Request', {
@@ -14,10 +14,6 @@ async function getPayrollReport(req, res) {
             fromDate,
             toDate
         });
-
-        if (!fromDate || !toDate) {
-            return res.status(400).json({ error: 'fromDate and toDate are required' });
-        }
 
         const result = await payrollService.getPayrollReport(
             campusId,
@@ -40,8 +36,8 @@ async function getPayrollReport(req, res) {
 
 async function getMyPayrollReport(req, res) {
     try {
-        const tenantId = req.user?.tenant_id || req.user?.tenantId || req.tenantId;
-        const campusId = req.user?.campus_id || req.user?.campusId || req.campusId;
+        const tenantId = req.user?.tenant_id;
+        const campusId = req.user?.campus_id;
         const username = req.user?.username;
         const role = req.user?.role;
         const { academicYear, fromDate, toDate } = req.body;
@@ -54,14 +50,6 @@ async function getMyPayrollReport(req, res) {
             fromDate,
             toDate
         });
-
-        if (!username || !role) {
-            return res.status(400).json({ error: 'User context is required for payroll' });
-        }
-
-        if (!fromDate || !toDate) {
-            return res.status(400).json({ error: 'fromDate and toDate are required' });
-        }
 
         const result = await payrollService.getMyPayrollReport(
             campusId,

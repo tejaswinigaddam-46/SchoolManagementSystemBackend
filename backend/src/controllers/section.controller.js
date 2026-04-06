@@ -13,20 +13,8 @@ const logger = require('../utils/logger');
  */
 const getAllSections = async (req, res) => {
     try {
-        const { tenantId, campusId, tenant, campus } = req.user;
+        const { tenantId, campusId } = req.user;
         const { page, limit, search, academic_year_id, class_id } = req.query;
-        
-        logger.info('Getting all sections', { 
-            tenantId, 
-            campusId,
-            tenantName: tenant?.name,
-            campusName: campus?.name,
-            page, 
-            limit, 
-            search,
-            academic_year_id,
-            class_id
-        });
         
         const result = await sectionService.getAllSections(tenantId, campusId, {
             page,
@@ -35,15 +23,7 @@ const getAllSections = async (req, res) => {
             academic_year_id,
             class_id
         });
-        
-        logger.info('Successfully retrieved sections', { 
-            tenantId, 
-            campusId,
-            tenantName: tenant?.name,
-            campusName: campus?.name,
-            count: result.sections.length,
-            total: result.pagination.total_count 
-        });
+    
         
         return successResponse(res, 'Sections retrieved successfully', result);
         
@@ -61,26 +41,10 @@ const getAllSections = async (req, res) => {
  */
 const createSection = async (req, res) => {
     try {
-        const { tenantId, campusId, tenant, campus } = req.user;
+        const { tenantId, campusId } = req.user;
         const sectionData = req.body;
-        
-        logger.info('Creating new section', { 
-            tenantId, 
-            campusId,
-            tenantName: tenant?.name,
-            campusName: campus?.name,
-            sectionName: sectionData.section_name,
-            className: sectionData.class_id,
-            academicYearId: sectionData.academic_year_id
-        });
-        
+
         const result = await sectionService.createSection(sectionData, tenantId, campusId);
-        
-        logger.info('Section created successfully', { 
-            tenantId, 
-            sectionId: result.section_id,
-            sectionName: result.section_name 
-        });
         
         return successResponse(res, 'Section created successfully', result, 201);
         
@@ -107,22 +71,11 @@ const createSection = async (req, res) => {
 const getSectionById = async (req, res) => {
     try {
         const { tenantId, campusId } = req.user;
-        const sectionId = parseInt(req.params.sectionId);
-        
-        if (!sectionId || isNaN(sectionId)) {
-            return errorResponse(res, 'Invalid section ID', 400);
-        }
+        const sectionId = req.params.sectionId;
         
         logger.info('Getting section by ID', { tenantId, campusId, sectionId });
         
         const section = await sectionService.getSectionById(sectionId, tenantId, campusId);
-        
-        logger.info('Section found by ID', { 
-            tenantId, 
-            campusId,
-            sectionId,
-            sectionName: section.section_name 
-        });
         
         return successResponse(res, 'Section retrieved successfully', section);
         
@@ -149,11 +102,7 @@ const getSectionById = async (req, res) => {
 const getSectionSubjects = async (req, res) => {
     try {
         const { tenantId, campusId } = req.user;
-        const sectionId = parseInt(req.params.sectionId);
-        
-        if (!sectionId || isNaN(sectionId)) {
-            return errorResponse(res, 'Invalid section ID', 400);
-        }
+        const sectionId = req.params.sectionId;
         
         logger.info('Getting subjects for section', { tenantId, campusId, sectionId });
         
@@ -181,12 +130,8 @@ const getSectionSubjects = async (req, res) => {
 const updateSection = async (req, res) => {
     try {
         const { tenantId, campusId } = req.user;
-        const sectionId = parseInt(req.params.sectionId);
+        const sectionId = req.params.sectionId;
         const updateData = req.body;
-        
-        if (!sectionId || isNaN(sectionId)) {
-            return errorResponse(res, 'Invalid section ID', 400);
-        }
         
         logger.info('Updating section', { 
             tenantId, 
@@ -234,11 +179,7 @@ const updateSection = async (req, res) => {
 const deleteSection = async (req, res) => {
     try {
         const { tenantId, campusId } = req.user;
-        const sectionId = parseInt(req.params.sectionId);
-        
-        if (!sectionId || isNaN(sectionId)) {
-            return errorResponse(res, 'Invalid section ID', 400);
-        }
+        const sectionId = req.params.sectionId;
         
         logger.info('Deleting section', { tenantId, campusId, sectionId });
         
@@ -297,15 +238,6 @@ const getFilterOptions = async (req, res) => {
         const { tenantId, campusId } = req.user;
         
         logger.info('Getting section filter options', { tenantId, campusId });
-        
-        // Validate required parameters
-        if (!campusId) {
-            return errorResponse(res, 'Campus ID is required', 400);
-        }
-        
-        if (!tenantId) {
-            return errorResponse(res, 'Tenant ID is required', 400);
-        }
         
         // Use centralized filter options method from academic service
         const academicService = require('../services/academic.service');

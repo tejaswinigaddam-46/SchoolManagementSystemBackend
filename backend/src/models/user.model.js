@@ -334,6 +334,48 @@ const UserModel = {
         }
     },
     
+    async getActiveUsersWithAcademicFilters(tenantId, campusId, roles, { yearName = null, classId = null, sectionId = null } = {}, client = pool) {
+        try {
+            let query = `
+                SELECT DISTINCT
+                    u.user_id, u.username, u.first_name, u.last_name, u.role,
+                    se.academic_year_id as student_ay_id
+                FROM users u
+                JOIN user_statuses us ON u.username = us.username
+                LEFT JOIN student_enrollment se ON u.username = se.username
+                LEFT JOIN classes c ON se.class_id = c.class_id
+                LEFT JOIN academic_years ay ON se.academic_year_id = ay.academic_year_id
+                WHERE u.tenant_id = $1 AND us.campus_id = $2 AND us.status = 'active'
+            `;
+            const values = [tenantId, campusId];
+            let pIdx = 3;
+            if (roles && Array.isArray(roles) && roles.length > 0) {
+                query += ` AND u.role = ANY($${pIdx})`;
+                values.push(roles);
+                pIdx++;
+            }
+            if (yearName) {
+                query += ` AND (u.role != 'Student' OR ay.year_name = $${pIdx})`;
+                values.push(yearName);
+                pIdx++;
+            }
+            if (classId) {
+                query += ` AND (u.role != 'Student' OR c.class_id = $${pIdx})`;
+                values.push(classId);
+                pIdx++;
+            }
+            if (sectionId) {
+                query += ` AND (u.role != 'Student' OR se.section_id = $${pIdx})`;
+                values.push(sectionId);
+            }
+            const res = await client.query(query, values);
+            return res.rows;
+        } catch (error) {
+            console.error('Error fetching users with academic filters:', error);
+            throw new Error('Failed to fetch users with academic filters.');
+        }
+    },
+    
     async saveUserAttendance(attendanceDate, yearName, campusId, records, client = pool) {
         try {
             if (!records || !Array.isArray(records) || records.length === 0) {
@@ -571,12 +613,7 @@ const UserModel = {
      */
     async searchStudents(searchTerm, filters, tenantId, client = pool) {
         try {
-            // Prominent logging that will definitely show up
-            console.log('\n🔍 ========== STUDENT SEARCH DEBUG START ==========');
-            console.log('📝 Search Term:', searchTerm);
-            console.log('🎯 Filters:', JSON.stringify(filters, null, 2));
-            console.log('🏢 Tenant ID:', tenantId);
-            
+
             let query = `
                 SELECT DISTINCT u.user_id, u.username, u.first_name, u.middle_name, u.last_name, u.role,
                        se.admission_number, se.roll_number
@@ -687,6 +724,104 @@ const UserModel = {
             
             console.error('Error searching students:', error);
             throw new Error('Failed to search students.');
+        }
+    },
+
+    async getDailyAttendance(campusId, roles, yearName, startDate, endDate, tenantId, classId = null, sectionId = null, client = pool) {
+        try {
+            // 2. Query Logic: Users x DateSeries LEFT JOIN UserAttendance
+            const values = [campusId, startDate, endDate, tenantId]; // $1, $2, $3, $4
+            let idx = 5;
+
+            // Base Joins
+            let userJoin = `
+                JOIN user_statuses us ON u.username = us.username
+                LEFT JOIN student_enrollment se ON u.username = se.username
+                LEFT JOIN academic_years ay ON se.academic_year_id = ay.academic_year_id
+                LEFT JOIN classes c ON se.class_id = c.class_id
+            `;
+
+            // Base Where - Step 1: Select all users of respective campusid and status as active
+            let userWhere = "u.tenant_id = $4 AND us.campus_id = $1 AND us.status = 'active'";
+            
+            // Step 2: Filter role of selected roles
+            if (roles && roles.length > 0) {
+                userWhere += ` AND u.role = ANY($${idx})`;
+                values.push(roles);
+                idx++;
+            }
+
+            // Step 3 & 4: Student specific logic
+            let studentFilters = [];
+            if (yearName) {
+                studentFilters.push(`ay.year_name = $${idx}`);
+                values.push(yearName);
+                idx++;
+            }
+            if (classId) {
+                studentFilters.push(`c.class_id = $${idx}`);
+                values.push(classId);
+                idx++;
+            }
+            if (sectionId) {
+                studentFilters.push(`se.section_id = $${idx}`);
+                values.push(sectionId);
+                idx++;
+            }
+
+            // Apply filters only to Students. Non-students are always included if they match base criteria.
+            if (studentFilters.length > 0) {
+                userWhere += ` AND (u.role != 'Student' OR (${studentFilters.join(' AND ')}))`;
+            }
+            
+            // Attendance Join Condition - Step 5
+            let attendanceJoinCondition = `
+                ua.username = u.username 
+                AND ua.attendance_date = d.date 
+                AND ua.campus_id = $1
+            `;
+            
+            if (yearName) {
+                attendanceJoinCondition += ` AND ua.year_name = $${idx}`;
+                values.push(yearName);
+                idx++;
+            }
+
+            const query = `
+                WITH date_series AS (
+                    SELECT generate_series($2::date, $3::date, '1 day'::interval)::date AS date
+                ),
+                filtered_users AS (
+                    SELECT DISTINCT u.user_id, u.username, u.first_name, u.last_name, u.role
+                    FROM users u
+                    ${userJoin}
+                    WHERE ${userWhere}
+                )
+                SELECT 
+                    d.date as attendance_date,
+                    u.user_id,
+                    u.username,
+                    u.first_name,
+                    u.last_name,
+                    u.role,
+                    COALESCE(ua.status, 'No Attendance') as status,
+                    COALESCE(TO_CHAR(ua.duration, 'HH24:MI'), '00:00') as duration,
+                    COALESCE(TO_CHAR(ua.total_duration, 'HH24:MI'), '00:00') as total_duration,
+                    ua.login_time,
+                    ua.logout_time,
+                    EXTRACT(EPOCH FROM ua.duration) as duration_hours,
+                    EXTRACT(EPOCH FROM ua.total_duration) as total_duration_hours
+                FROM filtered_users u
+                CROSS JOIN date_series d
+                LEFT JOIN user_attendance ua ON ${attendanceJoinCondition}
+                ORDER BY d.date DESC, u.username
+            `;
+
+            const result = await client.query(query, values);
+            return result.rows;
+        } catch (error) {
+            console.error('UserModel.getDailyAttendance error', error);
+            throw error;
         }
     }
 };

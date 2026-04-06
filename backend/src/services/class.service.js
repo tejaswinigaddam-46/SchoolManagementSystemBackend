@@ -12,26 +12,6 @@ const logger = require('../utils/logger');
  * @throws {Error} If creation fails or validation errors
  */
 const createClass = async (classData, tenantId, campusId) => {
-    // Validate required fields
-    if (!classData.className || !classData.className.trim()) {
-        throw new Error('Class name is required');
-    }
-
-    if (!classData.classLevel) {
-        throw new Error('Class level is required');
-    }
-
-    // Validate class level is a positive integer
-    const classLevel = parseInt(classData.classLevel);
-    if (isNaN(classLevel) || classLevel < 1 || classLevel > 12) {
-        throw new Error('Class level must be a number between 1 and 12');
-    }
-
-    // Validate class name length
-    if (classData.className.trim().length > 50) {
-        throw new Error('Class name must not exceed 50 characters');
-    }
-
     try {
         // Check if class name is unique within the campus
         const isUnique = await classModel.isClassNameUnique(classData.className, campusId);
@@ -76,10 +56,6 @@ const getAllClasses = async (tenantId, campusId = null, options = {}) => {
  * @returns {Promise<Object|null>} Class object or null if not found
  */
 const getClassById = async (classId, tenantId) => {
-    if (!classId || isNaN(parseInt(classId))) {
-        throw new Error('Valid class ID is required');
-    }
-
     try {
         const classItem = await classModel.findClassById(parseInt(classId), tenantId);
         
@@ -103,10 +79,6 @@ const getClassById = async (classId, tenantId) => {
  * @returns {Promise<Array>} Array of classes
  */
 const getClassesByCampus = async (campusId, tenantId) => {
-    if (!campusId) {
-        throw new Error('Campus ID is required');
-    }
-
     try {
         const classes = await classModel.findClassesByCampus(campusId, tenantId);
         
@@ -126,27 +98,6 @@ const getClassesByCampus = async (campusId, tenantId) => {
  * @returns {Promise<Object|null>} Updated class object or null
  */
 const updateClass = async (classId, updateData, tenantId) => {
-    if (!classId || isNaN(parseInt(classId))) {
-        throw new Error('Valid class ID is required');
-    }
-
-    // Validate update data
-    if (updateData.className !== undefined) {
-        if (!updateData.className || !updateData.className.trim()) {
-            throw new Error('Class name cannot be empty');
-        }
-        if (updateData.className.trim().length > 50) {
-            throw new Error('Class name must not exceed 50 characters');
-        }
-    }
-
-    if (updateData.classLevel !== undefined) {
-        const classLevel = parseInt(updateData.classLevel);
-        if (isNaN(classLevel) || classLevel < 1 || classLevel > 12) {
-            throw new Error('Class level must be a number between 1 and 12');
-        }
-    }
-
     try {
         // First check if class exists
         const existingClass = await classModel.findClassById(parseInt(classId), tenantId);
@@ -187,10 +138,6 @@ const updateClass = async (classId, updateData, tenantId) => {
  * @returns {Promise<boolean>} True if deleted successfully
  */
 const deleteClass = async (classId, tenantId) => {
-    if (!classId || isNaN(parseInt(classId))) {
-        throw new Error('Valid class ID is required');
-    }
-
     try {
         // First check if class exists
         const existingClass = await classModel.findClassById(parseInt(classId), tenantId);

@@ -9,10 +9,6 @@ const holidayController = {
       const { campusId } = req.params;
       const { date, academicYearId } = req.query;
 
-      if (!date || !academicYearId) {
-        return errorResponse(res, 'Date and Academic Year ID are required', 400);
-      }
-
       const result = await holidayService.checkDateStatus(campusId, date, Number(academicYearId));
       successResponse(res, 'Date status checked successfully', result);
     } catch (error) {
@@ -45,9 +41,7 @@ const holidayController = {
     try {
       const { campusId } = req.params;
       const { startDate, endDate, academicYearId } = req.query;
-      if (!startDate || !endDate) {
-        return errorResponse(res, 'startDate and endDate are required', 400);
-      }
+      
       const numericAcademicYearId = academicYearId ? Number(academicYearId) : null;
       const holidayModel = require('../models/holiday.model');
       const specialWorkingDayModel = require('../models/specialWorkingDay.model');

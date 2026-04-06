@@ -144,6 +144,19 @@ const specialWorkingDayModel = {
     } finally {
       client.release();
     }
+  },
+
+  checkSpecialWorkingDay: async (campusId, dateStr, academicYearId) => {
+    const query = `
+        SELECT description FROM special_working_days 
+        WHERE campus_id = $1 AND work_date = $2 AND academic_year_id = $3
+    `;
+    try {
+        const result = await pool.query(query, [campusId, dateStr, academicYearId]);
+        return result.rows;
+    } catch (error) {
+        throw error;
+    }
   }
 };
 

@@ -258,52 +258,52 @@ const updateTenant = async (tenantId, updateData) => {
     }
 };
 
-// /**
-//  * Get tenant statistics
-//  * @param {string} tenantId - The tenant ID
-//  * @returns {Promise<Object>} Tenant statistics
-//  * @throws {Error} If database operation fails
-//  */
-// const getTenantStatistics = async (tenantId) => {
-//     const queries = {
-//         totalUsers: `
-//             SELECT COUNT(*) as count 
-//             FROM memberships 
-//             WHERE tenant_id = $1
-//         `,
-//         usersByRole: `
-//             SELECT role, COUNT(*) as count 
-//             FROM memberships 
-//             WHERE tenant_id = $1 
-//             GROUP BY role
-//             ORDER BY role
-//         `,
-//         totalCampuses: `
-//             SELECT COUNT(*) as count 
-//             FROM campuses 
-//             WHERE tenant_id = $1
-//         `
-//     };
+/**
+ * Get tenant statistics
+ * @param {string} tenantId - The tenant ID
+ * @returns {Promise<Object>} Tenant statistics
+ * @throws {Error} If database operation fails
+ */
+const getTenantStatistics = async (tenantId) => {
+    const queries = {
+        totalUsers: `
+            SELECT COUNT(*) as count 
+            FROM memberships 
+            WHERE tenant_id = $1
+        `,
+        usersByRole: `
+            SELECT role, COUNT(*) as count 
+            FROM memberships 
+            WHERE tenant_id = $1 
+            GROUP BY role
+            ORDER BY role
+        `,
+        totalCampuses: `
+            SELECT COUNT(*) as count 
+            FROM campuses 
+            WHERE tenant_id = $1
+        `
+    };
     
-//     try {
-//         const [totalUsersResult, usersByRoleResult, totalCampusesResult] = await Promise.all([
-//             pool.query(queries.totalUsers, [tenantId]),
-//             pool.query(queries.usersByRole, [tenantId]),
-//             pool.query(queries.totalCampuses, [tenantId])
-//         ]);
+    try {
+        const [totalUsersResult, usersByRoleResult, totalCampusesResult] = await Promise.all([
+            pool.query(queries.totalUsers, [tenantId]),
+            pool.query(queries.usersByRole, [tenantId]),
+            pool.query(queries.totalCampuses, [tenantId])
+        ]);
         
-//         return {
-//             total_users: parseInt(totalUsersResult.rows[0].count),
-//             users_by_role: usersByRoleResult.rows.map(row => ({
-//                 role: row.role,
-//                 count: parseInt(row.count)
-//             })),
-//             total_campuses: parseInt(totalCampusesResult.rows[0].count)
-//         };
-//     } catch (error) {
-//         throw error;
-//     }
-// };
+        return {
+            total_users: parseInt(totalUsersResult.rows[0].count),
+            users_by_role: usersByRoleResult.rows.map(row => ({
+                role: row.role,
+                count: parseInt(row.count)
+            })),
+            total_campuses: parseInt(totalCampusesResult.rows[0].count)
+        };
+    } catch (error) {
+        throw error;
+    }
+};
 
 module.exports = {
     checkSubdomainExists,
@@ -313,5 +313,5 @@ module.exports = {
     findTenantById,
     getAllTenants,
     updateTenant,
-    //getTenantStatistics
+    getTenantStatistics
 };

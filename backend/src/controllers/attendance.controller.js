@@ -33,10 +33,6 @@ const getAttendance = async (req, res) => {
             return successResponse(res, 'Attendance records retrieved successfully', result);
         }
 
-        if (!classId || !sectionId || !date || !academicYearId) {
-            return errorResponse(res, 'Missing required parameters', 400);
-        }
-
         const result = await attendanceService.getAttendance(
             tenantId,
             campusId,
@@ -85,11 +81,6 @@ const saveAttendance = async (req, res) => {
             date,
             studentCount: attendanceData?.length
         });
-
-        if (!attendanceData || !Array.isArray(attendanceData)) {
-            logger.warn('Missing parameters for saveAttendance', { date, academicYearId, attendanceDataIsArray: Array.isArray(attendanceData) });
-            return errorResponse(res, 'Missing or invalid required parameters', 400);
-        }
 
         const result = await attendanceService.saveAttendance({
             tenantId,

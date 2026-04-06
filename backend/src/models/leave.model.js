@@ -353,6 +353,20 @@ const isUserAssignedApproverForRequest = async (leaveRequestId, username) => {
   return res.rowCount > 0;
 };
 
+const getLeaveStatsByUsernamesAndDateRange = async (usernames, startDate, endDate, client = pool) => {
+  if (!Array.isArray(usernames) || usernames.length === 0) return [];
+  const leaveQuery = `
+    SELECT username,
+           COUNT(*) FILTER (WHERE overall_status = 'pending') as pending_count,
+           COUNT(*) FILTER (WHERE overall_status = 'approved' AND leave_date BETWEEN $2::date AND $3::date) as approved_count
+    FROM leave_requests
+    WHERE username = ANY($1)
+    GROUP BY username
+  `;
+  const leaveRes = await client.query(leaveQuery, [usernames, startDate, endDate]);
+  return leaveRes.rows;
+};
+
 module.exports = {
   createLeaveRequest,
   createApprovalStepsBulk,
@@ -371,5 +385,6 @@ module.exports = {
   findTenantAdmins,
   getUserRoleByUsername,
   findStudentsForParent,
-  isUserAssignedApproverForRequest
+  isUserAssignedApproverForRequest,
+  getLeaveStatsByUsernamesAndDateRange
 };

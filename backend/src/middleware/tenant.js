@@ -96,9 +96,5 @@ const identifyTenant = async (req, res, next) => {
 };
 
 module.exports = {
-  // tenantResolver,
-  // requireFeature,
-  // extractTenantFromSubdomain,
-  // validateTenant,
   identifyTenant
 };

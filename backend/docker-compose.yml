@@ -1,0 +1,22 @@
+services:
+  # Backend API service
+  backend:
+    build:
+      context: .
+      dockerfile: docker/api.DockerFile
+    container_name: sms-backend
+    restart: always
+    ports:
+      - "${PORT:-5001}:5001"
+    # Env file will be specified at runtime or default to .env
+    env_file:
+      - .env.${NODE_ENV:-development}
+    environment:
+      - NODE_ENV=${NODE_ENV:-development}
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:5001/api').then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    volumes:
+      - ./uploads:/app/uploads

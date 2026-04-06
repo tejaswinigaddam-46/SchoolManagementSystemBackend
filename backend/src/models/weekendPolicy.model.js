@@ -83,6 +83,19 @@ const weekendPolicyModel = {
     } catch (error) {
       throw error;
     }
+  },
+
+  getByCampusAndAcademicYear: async (campusId, academicYearId) => {
+    const query = `
+        SELECT * FROM weekend_policies 
+        WHERE campus_id = $1 AND academic_year_id = $2
+    `;
+    try {
+        const result = await pool.query(query, [campusId, academicYearId]);
+        return result.rows[0];
+    } catch (error) {
+        throw error;
+    }
   }
 };
 

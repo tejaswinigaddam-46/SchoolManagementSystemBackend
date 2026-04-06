@@ -16,39 +16,7 @@ const registerTenant = async (req, res) => {
             adminPhone,
             adminDOB,
             campusName, campusAddress, campusPhone, campusEmail, campusYearEstablished, campusNoOfFloors } = req.body;
-        
-        // Validate required fields
-        if (!tenantName || !subdomain || !tenantPhone || !yearFounded || !logoUrl || !websiteUrl || !adminFirstName  || !adminLastName || !adminPhone || !adminDOB || !campusName || !campusAddress || !campusNoOfFloors) {
-            return res.status(400).json({
-                success: false,
-                message: 'All fields are required: tenantName, subdomain, tenantPhone, yearFounded, logoUrl, websiteUrl, adminFirstName, adminLastName, adminPhone, adminDOB, campusName, campusAddress, campusNoOfFloors'
-            });
-        }
 
-        // Validate campus phone (optional)
-        if (campusPhone && !/^([+]?\d{1,3}[\s-]?)?\d{10,11}$/.test(campusPhone.replace(/[\s-]/g, ''))) {
-            return res.status(400).json({ success: false, message: 'Invalid campus phone number format' });
-        }
-
-        // Validate campus email (optional)
-        if (campusEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(campusEmail)) {
-            return res.status(400).json({ success: false, message: 'Invalid campus email format' });
-        }
-
-        // Validate campus year established (optional)
-        if (campusYearEstablished) {
-            const currentYear = new Date().getFullYear();
-            const yearNum = parseInt(campusYearEstablished);
-            if (isNaN(yearNum) || yearNum < 1800 || yearNum > currentYear) {
-                return res.status(400).json({ success: false, message: `Campus year established must be between 1800 and ${currentYear}` });
-            }
-        }
-
-        // Validate campus no of floors
-        const noOfFloors = parseInt(campusNoOfFloors);
-        if (isNaN(noOfFloors) || noOfFloors < 1) {
-            return res.status(400).json({ success: false, message: 'Number of floors must be > 0' });
-        }
 
         const result = await tenantService.registerTenant({
             tenantName,
@@ -67,7 +35,7 @@ const registerTenant = async (req, res) => {
             campusPhone,
             campusEmail,
             campusYearEstablished,
-            campusNoOfFloors: noOfFloors,
+            campusNoOfFloors
             
         });
         
@@ -113,13 +81,6 @@ const registerTenant = async (req, res) => {
 const getTenantBySubdomain = async (req, res) => {
     try {
         const { subdomain } = req.params;
-        
-        if (!subdomain) {
-            return res.status(400).json({
-                success: false,
-                message: 'Subdomain parameter is required'
-            });
-        }
 
         const tenant = await tenantService.getTenantBySubdomain(subdomain);
         
@@ -152,13 +113,6 @@ const getTenantBySubdomain = async (req, res) => {
 const getTenantById = async (req, res) => {
     try {
         const { tenantId } = req.params;
-        
-        if (!tenantId) {
-            return res.status(400).json({
-                success: false,
-                message: 'Tenant ID parameter is required'
-            });
-        }
 
         const tenant = await tenantService.getTenantById(tenantId);
         
@@ -216,14 +170,6 @@ const updateTenant = async (req, res) => {
     try {
         const { tenantId } = req.params;
         const updateData = req.body;
-        
-        if (!tenantId) {
-            return res.status(400).json({
-                success: false,
-                message: 'Tenant ID parameter is required'
-            });
-        }
-
         // Remove fields that shouldn't be updated
         delete updateData.tenant_id;
         delete updateData.subdomain;
@@ -274,14 +220,6 @@ const updateTenant = async (req, res) => {
 const getTenantStatistics = async (req, res) => {
     try {
         const { tenantId } = req.params;
-        
-        if (!tenantId) {
-            return res.status(400).json({
-                success: false,
-                message: 'Tenant ID parameter is required'
-            });
-        }
-
         const statistics = await tenantService.getTenantStatistics(tenantId);
         
         res.status(200).json({
@@ -314,14 +252,6 @@ const getTenantStatistics = async (req, res) => {
 const checkSubdomainAvailability = async (req, res) => {
     try {
         const { subdomain } = req.params;
-        
-        if (!subdomain) {
-            return res.status(400).json({
-                success: false,
-                message: 'Subdomain parameter is required'
-            });
-        }
-
         const result = await tenantService.checkSubdomainAvailability(subdomain);
         
         res.status(200).json({
@@ -346,14 +276,6 @@ const checkSubdomainAvailability = async (req, res) => {
 const checkEmailAvailability = async (req, res) => {
     try {
         const { email } = req.params;
-        
-        if (!email) {
-            return res.status(400).json({
-                success: false,
-                message: 'Email parameter is required'
-            });
-        }
-
         const result = await tenantService.checkEmailAvailability(email);
         
         res.status(200).json({

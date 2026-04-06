@@ -1,19 +1,13 @@
 const express = require('express');
 const router = express.Router();
 const employeeController = require('../controllers/employee.controller');
-const employeeBulkImportController = require('../controllers/employeeBulkImport.controller');
+const employeeBulkOperationController = require('../controllers/employeeBulkOperation.controller');
 const upload = require('../middleware/upload.middleware');
-const employeeExportController = require('../controllers/employeeExport.controller');
-const employeeBulkUpdateController = require('../controllers/employeeBulkUpdate.controller');
 const { authenticate, requirePermission } = require('../middleware/auth');
 const { PERMISSIONS } = require('../config/permissions');
-const { 
-    createEmployeeValidation, 
-    updateEmployeeValidation,
-    usernameParamValidation,
-    employeeIdParamValidation,
-    employmentIdParamValidation
-} = require('../validators/employee.validator');
+const validate = require('../middleware/validation');
+const employeeBulkOperationSchema = require('../schemas/employeeBulkOperation.schema');
+const employeeSchema = require('../schemas/employee.schema');
 
 // ==================== EMPLOYEE ROUTES ====================
 
@@ -21,7 +15,7 @@ router.get(
   '/import/template',
   authenticate,
   requirePermission(PERMISSIONS.EMPLOYEE_IMPORT_TEMPLATE_READ),
-  employeeBulkImportController.downloadTemplate
+  employeeBulkOperationController.downloadTemplate
 );
 
 router.post(
@@ -29,14 +23,16 @@ router.post(
   authenticate,
   requirePermission(PERMISSIONS.EMPLOYEE_IMPORT_CREATE),
   upload.single('file'),
-  employeeBulkImportController.uploadEmployees
+  validate(employeeBulkOperationSchema.uploadEmployees),
+  employeeBulkOperationController.uploadEmployees
 );
 
 router.post(
   '/export',
   authenticate,
   requirePermission(PERMISSIONS.EMPLOYEE_EXPORT_CREATE),
-  employeeExportController.exportEmployees
+  validate(employeeBulkOperationSchema.exportEmployees),
+  employeeBulkOperationController.exportEmployees
 );
 
 router.post(
@@ -44,7 +40,8 @@ router.post(
   authenticate,
   requirePermission(PERMISSIONS.EMPLOYEE_BULK_UPDATE_CREATE),
   upload.single('file'),
-  employeeBulkUpdateController.bulkUpdateEmployees
+  validate(employeeBulkOperationSchema.updateEmployees),
+  employeeBulkOperationController.bulkUpdateEmployees
 );
 
 /**
@@ -55,6 +52,7 @@ router.get(
   '/',
   authenticate,
   requirePermission(PERMISSIONS.EMPLOYEE_LIST_READ),
+  validate(employeeSchema.getAllEmployees),
   employeeController.getAllEmployeesController
 );
 
@@ -62,7 +60,7 @@ router.post(
   '/',
   authenticate,
   requirePermission(PERMISSIONS.EMPLOYEE_CREATE_ROUTE_CREATE),
-  createEmployeeValidation,
+  validate(employeeSchema.createEmployee),
   employeeController.createEmployeeController
 );
 
@@ -74,6 +72,7 @@ router.get(
   '/statistics',
   authenticate,
   requirePermission(PERMISSIONS.EMPLOYEE_STATISTICS_READ),
+  validate(employeeSchema.getEmployeeStatistics),
   employeeController.getEmployeeStatisticsController
 );
 
@@ -85,6 +84,7 @@ router.get(
   '/enum-values',
   authenticate,
   requirePermission(PERMISSIONS.EMPLOYEE_ENUM_VALUES_READ),
+  validate(employeeSchema.getEnumValues),
   employeeController.getEnumValuesController
 );
 
@@ -96,6 +96,7 @@ router.get(
   '/filter-options',
   authenticate,
   requirePermission(PERMISSIONS.EMPLOYEE_FILTER_OPTIONS_READ),
+  validate(employeeSchema.getFilterOptions),
   employeeController.getFilterOptionsController
 );
 
@@ -107,6 +108,7 @@ router.get(
   '/check-username',
   authenticate,
   requirePermission(PERMISSIONS.EMPLOYEE_CHECK_USERNAME_READ),
+  validate(employeeSchema.checkUsernameAvailability),
   employeeController.checkUsernameAvailabilityController
 );
 
@@ -118,6 +120,7 @@ router.get(
   '/check-employee-id',
   authenticate,
   requirePermission(PERMISSIONS.EMPLOYEE_CHECK_EMPLOYEE_ID_READ),
+  validate(employeeSchema.checkEmployeeIdAvailability),
   employeeController.checkEmployeeIdAvailabilityController
 );
 
@@ -129,6 +132,7 @@ router.get(
   '/campus/:campusId',
   authenticate,
   requirePermission(PERMISSIONS.EMPLOYEE_BY_CAMPUS_READ),
+  validate(employeeSchema.getEmployeesByCampus),
   employeeController.getEmployeesByCampusController
 );
 
@@ -140,6 +144,7 @@ router.get(
   '/department/:department',
   authenticate,
   requirePermission(PERMISSIONS.EMPLOYEE_BY_DEPARTMENT_READ),
+  validate(employeeSchema.getEmployeesByDepartment),
   employeeController.getEmployeesByDepartmentController
 );
 
@@ -151,7 +156,7 @@ router.get(
   '/username/:username',
   authenticate,
   requirePermission(PERMISSIONS.EMPLOYEE_BY_USERNAME_READ),
-  usernameParamValidation,
+  validate(employeeSchema.getEmployeeByUsername),
   employeeController.getEmployeeByUsernameController
 );
 
@@ -163,7 +168,7 @@ router.get(
   '/employee-id/:employeeId',
   authenticate,
   requirePermission(PERMISSIONS.EMPLOYEE_BY_EMPLOYEE_ID_READ),
-  employeeIdParamValidation,
+  validate(employeeSchema.getEmployeeByEmployeeId),
   employeeController.getEmployeeByEmployeeIdController
 );
 
@@ -175,7 +180,7 @@ router.get(
   '/employment/:employmentId',
   authenticate,
   requirePermission(PERMISSIONS.EMPLOYEE_BY_EMPLOYMENT_ID_READ),
-  employmentIdParamValidation,
+  validate(employeeSchema.getEmployeeByEmploymentId),
   employeeController.getEmployeeByEmployeeIdController
 );
 
@@ -183,7 +188,7 @@ router.get(
   '/username/:username/edit',
   authenticate,
   requirePermission(PERMISSIONS.EMPLOYEE_FOR_EDIT_READ),
-  usernameParamValidation,
+  validate(employeeSchema.getEmployeeForEdit),
   employeeController.getCompleteEmployeeForEditController
 );
 
@@ -191,8 +196,7 @@ router.put(
   '/:username',
   authenticate,
   requirePermission(PERMISSIONS.EMPLOYEE_EDIT_PRIMARY_EDIT),
-  usernameParamValidation,
-  updateEmployeeValidation,
+  validate(employeeSchema.updateEmployee),
   employeeController.updateEmployeeController
 );
 
@@ -200,8 +204,7 @@ router.put(
   '/username/:username',
   authenticate,
   requirePermission(PERMISSIONS.EMPLOYEE_EDIT_USERNAME_EDIT),
-  usernameParamValidation,
-  updateEmployeeValidation,
+  validate(employeeSchema.updateEmployee),
   employeeController.updateEmployeeController
 );
 
@@ -209,7 +212,7 @@ router.delete(
   '/:username',
   authenticate,
   requirePermission(PERMISSIONS.EMPLOYEE_DELETE_ROUTE_DELETE),
-  usernameParamValidation,
+  validate(employeeSchema.deleteEmployee),
   employeeController.deleteEmployeeController
 );
 
@@ -217,7 +220,7 @@ router.delete(
   '/username/:username',
   authenticate,
   requirePermission(PERMISSIONS.EMPLOYEE_DELETE_USERNAME_ROUTE_DELETE),
-  usernameParamValidation,
+  validate(employeeSchema.deleteEmployee),
   employeeController.deleteEmployeeController
 );
 

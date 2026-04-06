@@ -1004,5 +1004,19 @@ module.exports = {
     getEmployeeStatistics,
     getEnumValues,
     getMainCampusId,
-    getAnyCampusId
+    getAnyCampusId,
+    getEmployeeSalaries: async (usernames) => {
+        const query = `
+            SELECT username, salary 
+            FROM employment_details 
+            WHERE username = ANY($1)
+        `;
+        try {
+            const result = await pool.query(query, [usernames]);
+            return result.rows;
+        } catch (error) {
+            logger.error('Error fetching employee salaries:', error);
+            throw error;
+        }
+    }
 };

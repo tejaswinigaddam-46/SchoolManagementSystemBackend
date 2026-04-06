@@ -2,7 +2,7 @@ const { pool } = require('../config/database');
 
 const EventModel = {
   // Create a new event
-  createEvent: async (eventData) => {
+  createEvent: async (eventData, client = null) => {
     const {
       tenant_id,
       campus_id,
@@ -39,7 +39,8 @@ const EventModel = {
       room_id, event_status
     ];
 
-    const result = await pool.query(query, values);
+    const db = client || pool;
+    const result = await db.query(query, values);
     return result.rows[0];
   },
 
@@ -51,7 +52,7 @@ const EventModel = {
   },
 
   // Update event
-  updateEvent: async (eventId, eventData) => {
+  updateEvent: async (eventId, eventData, client = pool) => {
     const fields = [];
     const values = [];
     let idx = 1;
@@ -84,8 +85,6 @@ const EventModel = {
     addField('event_status', eventData.event_status);
     addField('academic_year_id', eventData.academic_year_id); // Allow updating academic year if needed
 
-    if (fields.length === 0) return null;
-
     values.push(eventId);
     const query = `
       UPDATE calendar_events
@@ -94,19 +93,19 @@ const EventModel = {
       RETURNING *;
     `;
 
-    const result = await pool.query(query, values);
+    const result = await client.query(query, values);
     return result.rows[0];
   },
 
   // Delete event (Cascade handles instances)
-  deleteEvent: async (eventId) => {
+  deleteEvent: async (eventId, client = pool) => {
     const query = `DELETE FROM calendar_events WHERE event_id = $1 RETURNING *`;
-    const result = await pool.query(query, [eventId]);
+    const result = await client.query(query, [eventId]);
     return result.rows[0];
   },
 
   // Upsert instance (for single occurrence update/delete/cancel)
-  upsertInstance: async (instanceData) => {
+  upsertInstance: async (instanceData, client = pool) => {
     const {
       event_id,
       original_start_date,
@@ -125,7 +124,7 @@ const EventModel = {
       SELECT instance_id FROM calendar_event_instances
       WHERE event_id = $1 AND original_start_date = $2
     `;
-    const checkRes = await pool.query(checkQuery, [event_id, original_start_date]);
+    const checkRes = await client.query(checkQuery, [event_id, original_start_date]);
 
     if (checkRes.rows.length > 0) {
       // Update
@@ -144,7 +143,7 @@ const EventModel = {
         WHERE event_id = $1 AND original_start_date = $2
         RETURNING *;
       `;
-      const result = await pool.query(updateQuery, [
+      const result = await client.query(updateQuery, [
         event_id, original_start_date, actual_start_date, actual_end_date,
         actual_start_time, actual_end_time, is_cancelled, specific_description, updated_by, room_id
       ]);
@@ -159,7 +158,7 @@ const EventModel = {
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
         RETURNING *;
       `;
-      const result = await pool.query(insertQuery, [
+      const result = await client.query(insertQuery, [
         event_id, original_start_date, actual_start_date, actual_end_date,
         actual_start_time, actual_end_time, is_cancelled, specific_description, updated_by, room_id
       ]);
@@ -178,8 +177,19 @@ const EventModel = {
   getEventsByCampus: async (campusId, academicYearId) => {
     let query = `
       SELECT e.*, 
+             ex.exam_id,
+             ex.subject_name,
+             ex.total_score,
+             ex.passing_score,
              json_agg(i.*) FILTER (WHERE i.instance_id IS NOT NULL) as instances
       FROM calendar_events e
+      LEFT JOIN LATERAL (
+        SELECT exam_id, subject_name, total_score, passing_score
+        FROM exams
+        WHERE event_id = e.event_id
+        ORDER BY exam_date ASC
+        LIMIT 1
+      ) ex ON true
       LEFT JOIN calendar_event_instances i ON e.event_id = i.event_id
       WHERE e.campus_id = $1
     `;
@@ -190,7 +200,7 @@ const EventModel = {
         params.push(academicYearId);
     }
 
-    query += ` GROUP BY e.event_id`;
+    query += ` GROUP BY e.event_id, ex.exam_id, ex.subject_name, ex.total_score, ex.passing_score`;
     
     const result = await pool.query(query, params);
     return result.rows;

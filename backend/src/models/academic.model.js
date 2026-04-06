@@ -6,12 +6,8 @@ const { pool } = require('../config/database');
  * Get all curricula for a specific campus
  */
 const getAllCurricula = async (campusId) => {
-    if (!campusId || campusId.toString().trim() === '' || campusId === 'undefined' || campusId === null) {
-        throw new Error('Valid campus ID is required');
-    }
-
     const query = `
-        SELECT * FROM curricula 
+        SELECT curriculum_name, curriculum_id, curriculum_code FROM curricula 
         WHERE campus_id = $1
         ORDER BY curriculum_name ASC;
     `;
@@ -29,10 +25,6 @@ const getAllCurricula = async (campusId) => {
  * Create a new curriculum
  */
 const createCurriculum = async (curriculumData) => {
-    if (!curriculumData.campus_id || curriculumData.campus_id.toString().trim() === '' || curriculumData.campus_id === 'undefined' || curriculumData.campus_id === null) {
-        throw new Error('Valid campus ID is required');
-    }
-
     const query = `
         INSERT INTO curricula 
         (campus_id, curriculum_code, curriculum_name)
@@ -58,14 +50,6 @@ const createCurriculum = async (curriculumData) => {
  * Update a curriculum by ID for a specific campus
  */
 const updateCurriculum = async (curriculumId, curriculumData, campusId) => {
-    if (!campusId || campusId.toString().trim() === '' || campusId === 'undefined' || campusId === null) {
-        throw new Error('Valid campus ID is required');
-    }
-
-    if (!curriculumId || curriculumId.toString().trim() === '' || curriculumId === 'undefined' || curriculumId === null) {
-        throw new Error('Valid curriculum ID is required');
-    }
-
     // Build dynamic query based on provided fields
     const updateFields = [];
     const values = [];
@@ -116,14 +100,6 @@ const updateCurriculum = async (curriculumId, curriculumData, campusId) => {
  * Delete a curriculum by ID for a specific campus
  */
 const deleteCurriculum = async (curriculumId, campusId) => {
-    if (!campusId || campusId.toString().trim() === '' || campusId === 'undefined' || campusId === null) {
-        throw new Error('Valid campus ID is required');
-    }
-
-    if (!curriculumId || curriculumId.toString().trim() === '' || curriculumId === 'undefined' || curriculumId === null) {
-        throw new Error('Valid curriculum ID is required');
-    }
-
     const query = `
         DELETE FROM curricula 
         WHERE curriculum_id = $1 AND campus_id = $2
@@ -143,14 +119,6 @@ const deleteCurriculum = async (curriculumId, campusId) => {
  * Get a curriculum by ID for a specific campus
  */
 const getCurriculumById = async (curriculumId, campusId) => {
-    if (!campusId || campusId.toString().trim() === '' || campusId === 'undefined' || campusId === null) {
-        throw new Error('Valid campus ID is required');
-    }
-
-    if (!curriculumId || curriculumId.toString().trim() === '' || curriculumId === 'undefined' || curriculumId === null) {
-        throw new Error('Valid curriculum ID is required');
-    }
-
     const query = `
         SELECT * FROM curricula 
         WHERE curriculum_id = $1 AND campus_id = $2;
@@ -171,10 +139,6 @@ const getCurriculumById = async (curriculumId, campusId) => {
  * Get all academic years for a specific campus
  */
 const getAllAcademicYears = async (campusId) => {
-    if (!campusId || campusId.toString().trim() === '' || campusId === 'undefined' || campusId === null) {
-        throw new Error('Valid campus ID is required');
-    }
-
     const query = `
         SELECT ay.*, c.curriculum_name, c.curriculum_code,
                fc.class_name as fromclass, tc.class_name as toclass
@@ -199,10 +163,6 @@ const getAllAcademicYears = async (campusId) => {
  * Create a new academic year
  */
 const createAcademicYear = async (academicYearData) => {
-    if (!academicYearData.campus_id || academicYearData.campus_id.toString().trim() === '' || academicYearData.campus_id === 'undefined' || academicYearData.campus_id === null) {
-        throw new Error('Valid campus ID is required');
-    }
-
     const query = `
         INSERT INTO academic_years 
         (campus_id, year_name, year_type, medium, start_date, end_date, from_class_id, to_class_id, 
@@ -248,14 +208,6 @@ const createAcademicYear = async (academicYearData) => {
  * Update an academic year by ID for a specific campus
  */
 const updateAcademicYear = async (academicYearId, academicYearData, campusId) => {
-    if (!campusId || campusId.toString().trim() === '' || campusId === 'undefined' || campusId === null) {
-        throw new Error('Valid campus ID is required');
-    }
-
-    if (!academicYearId || academicYearId.toString().trim() === '' || academicYearId === 'undefined' || academicYearId === null) {
-        throw new Error('Valid academic year ID is required');
-    }
-
     // Build dynamic query based on provided fields
     const updateFields = [];
     const values = [];
@@ -315,14 +267,6 @@ const updateAcademicYear = async (academicYearId, academicYearData, campusId) =>
  * Delete an academic year by ID for a specific campus
  */
 const deleteAcademicYear = async (academicYearId, campusId) => {
-    if (!campusId || campusId.toString().trim() === '' || campusId === 'undefined' || campusId === null) {
-        throw new Error('Valid campus ID is required');
-    }
-
-    if (!academicYearId || academicYearId.toString().trim() === '' || academicYearId === 'undefined' || academicYearId === null) {
-        throw new Error('Valid academic year ID is required');
-    }
-
     const query = `
         DELETE FROM academic_years 
         WHERE academic_year_id = $1 AND campus_id = $2
@@ -342,14 +286,6 @@ const deleteAcademicYear = async (academicYearId, campusId) => {
  * Get an academic year by ID for a specific campus
  */
 const getAcademicYearById = async (academicYearId, campusId) => {
-    if (!campusId || campusId.toString().trim() === '' || campusId === 'undefined' || campusId === null) {
-        throw new Error('Valid campus ID is required');
-    }
-
-    if (!academicYearId || academicYearId.toString().trim() === '' || academicYearId === 'undefined' || academicYearId === null) {
-        throw new Error('Valid academic year ID is required');
-    }
-
     const query = `
         SELECT ay.*, c.curriculum_name, c.curriculum_code,
                fc.class_name as fromclass, tc.class_name as toclass
@@ -373,10 +309,6 @@ const getAcademicYearById = async (academicYearId, campusId) => {
  * Get academic year options for dropdown (joins academic_years and curricula)
  */
 const getAcademicYearOptions = async (campusId) => {
-    if (!campusId || campusId.toString().trim() === '' || campusId === 'undefined' || campusId === null) {
-        throw new Error('Valid campus ID is required');
-    }
-
     const query = `
         SELECT
             ay.academic_year_id,
@@ -407,10 +339,6 @@ const getAcademicYearOptions = async (campusId) => {
  * Get distinct year names for dropdown
  */
 const getDistinctYearNames = async (campusId) => {
-    if (!campusId || campusId.toString().trim() === '' || campusId === 'undefined' || campusId === null) {
-        throw new Error('Valid campus ID is required');
-    }
-
     const query = `
         SELECT DISTINCT year_name
         FROM academic_years
@@ -431,10 +359,6 @@ const getDistinctYearNames = async (campusId) => {
  * Get distinct media for dropdown
  */
 const getDistinctMedia = async (campusId) => {
-    if (!campusId || campusId.toString().trim() === '' || campusId === 'undefined' || campusId === null) {
-        throw new Error('Valid campus ID is required');
-    }
-
     const query = `
         SELECT DISTINCT medium
         FROM academic_years
@@ -455,10 +379,6 @@ const getDistinctMedia = async (campusId) => {
  * Get academic year ID by year name, year type, curriculum, and medium combination
  */
 const getAcademicYearIdByCombo = async (campusId, yearName, yearType, curriculumId, medium) => {
-    if (!campusId || campusId.toString().trim() === '' || campusId === 'undefined' || campusId === null) {
-        throw new Error('Valid campus ID is required');
-    }
-
     const query = `
         SELECT academic_year_id
         FROM academic_years

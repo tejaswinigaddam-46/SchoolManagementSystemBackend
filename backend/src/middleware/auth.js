@@ -22,6 +22,8 @@ const authenticate = async (req, res, next) => {
     const decoded = await loginService.verifyToken(token);
     
     req.user = {
+      tenant_id: decoded.tenant.tenant_id,
+      campus_id: decoded.campus.campus_id,
       tenantId: decoded.tenant.tenant_id,
       campusId: decoded.campus.campus_id,
       roles: Array.isArray(decoded.role) ? decoded.role : [decoded.role?.role || decoded.role],

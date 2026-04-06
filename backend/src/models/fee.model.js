@@ -343,6 +343,28 @@ const getAllPayments = async (tenant_id, campus_id, filters) => {
   return res.rows;
 };
 
+const createInstallments = async (client, fee_structure_id, installments) => {
+  const q = `
+    INSERT INTO fee_installments (
+      fee_structure_id, installment_name, due_date, amount, penalty_amount
+    ) VALUES ($1, $2, $3, $4, COALESCE($5, 0))
+    RETURNING *
+  `;
+
+  const rows = [];
+  for (const ins of installments || []) {
+    const res = await client.query(q, [
+      fee_structure_id,
+      ins.installment_name,
+      ins.due_date,
+      ins.amount,
+      ins.penalty_amount || 0
+    ]);
+    rows.push(res.rows[0]);
+  }
+  return rows;
+};
+
 module.exports = {
   createFeeStructureWithInstallments,
   getFeeStructureForClass,
@@ -363,5 +385,6 @@ module.exports = {
   updateFeeStructure,
   deleteInstallmentsByStructure,
   getStudentFeeDues,
-  getAllPayments
+  getAllPayments,
+  createInstallments
 };
