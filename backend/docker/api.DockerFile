@@ -30,7 +30,7 @@ COPY src ./src
 COPY server.js ./server.js
 
 # Create uploads directory and ensure node user owns it
-RUN mkdir -p uploads && chown node:node uploads
+RUN mkdir -p /app/uploads/temp && chown -R node:node /app/uploads
 
 # Use non-root user for security (the node user is built-in to node images)
 USER node
