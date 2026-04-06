@@ -271,6 +271,7 @@ CREATE TYPE public.relationship_enum AS ENUM (
     'Mother',
     'Father',
     'Guardian',
+    'Spouse',
     'Other'
 );
 
@@ -382,7 +383,10 @@ event_status public.event_status_enum NOT NULL DEFAULT 'Yet to be start'::public
 created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
 CONSTRAINT check_date_range CHECK (start_date <= end_date),
-constraint check_time_range CHECK (start_time < end_time));
+constraint check_time_range CHECK (
+    start_date != end_date 
+    OR start_time < end_time
+);
 
 
 CREATE INDEX idx_calendar_events_date_range ON public.calendar_events (start_date, end_date);
