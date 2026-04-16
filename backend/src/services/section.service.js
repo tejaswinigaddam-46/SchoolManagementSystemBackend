@@ -207,6 +207,47 @@ const SectionService = {
                 throw new Error('Section not found or could not be updated');
             }
 
+            // Handle room status updates
+            const oldRoomId = existingSection.room_id;
+            const newRoomId = updatedSection.room_id;
+
+            if (newRoomId !== oldRoomId) {
+                // 1. Mark old room as available
+                if (oldRoomId) {
+                    try {
+                        const oldRoomRes = await RoomModel.getRoomById(oldRoomId, campusId);
+                        const oldRoomCap = oldRoomRes?.data?.capacity ?? null;
+                        await RoomModel.setRoomBookingStatus(oldRoomId, campusId, 'available', oldRoomCap);
+                    } catch (e) {
+                        logger.error('Failed to update old room status to available', e);
+                    }
+                }
+
+                // 2. Mark new room as booked
+                if (newRoomId) {
+                    try {
+                        const newRoomRes = await RoomModel.getRoomById(newRoomId, campusId);
+                        const newRoomCap = newRoomRes?.data?.capacity ?? null;
+                        const secCap = updatedSection.capacity ?? 0;
+                        const availableCapacity = newRoomCap == null ? null : Math.max(0, parseInt(newRoomCap) - parseInt(secCap || 0));
+                        await RoomModel.setRoomBookingStatus(newRoomId, campusId, 'booked', availableCapacity);
+                    } catch (e) {
+                        logger.error('Failed to update new room status to booked', e);
+                    }
+                }
+            } else if (newRoomId && (updateData.capacity !== undefined && updateData.capacity !== existingSection.capacity)) {
+                // Room didn't change, but capacity did - update available_capacity
+                try {
+                    const roomRes = await RoomModel.getRoomById(newRoomId, campusId);
+                    const roomCap = roomRes?.data?.capacity ?? null;
+                    const secCap = updatedSection.capacity ?? 0;
+                    const availableCapacity = roomCap == null ? null : Math.max(0, parseInt(roomCap) - parseInt(secCap || 0));
+                    await RoomModel.setRoomBookingStatus(newRoomId, campusId, 'booked', availableCapacity);
+                } catch (e) {
+                    logger.error('Failed to update room available capacity after capacity change', e);
+                }
+            }
+
             try {
                 const cap = updateData.capacity != null ? parseInt(updateData.capacity) : (existingSection.capacity != null ? parseInt(existingSection.capacity) : null);
                 const rid = updateData.room_id || existingSection.room_id;
