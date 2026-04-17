@@ -25,7 +25,8 @@ const getMyLeaves = async (req, res) => {
 const getPendingApprovals = async (req, res) => {
   try {
     const { tenantId, campusId, username } = req.user;
-    const rows = await leaveService.getPendingApprovals(tenantId, campusId, username);
+    const { startDate, endDate } = req.query;
+    const rows = await leaveService.getPendingApprovals(tenantId, campusId, username, startDate, endDate);
     return successResponse(res, 'Pending approvals retrieved', rows);
   } catch (err) {
     return errorResponse(res, err.message || 'Failed to load pending approvals', 500);
@@ -35,7 +36,8 @@ const getPendingApprovals = async (req, res) => {
 const getCompletedApprovals = async (req, res) => {
   try {
     const { tenantId, campusId, username } = req.user;
-    const rows = await leaveService.getCompletedApprovals(tenantId, campusId, username);
+    const { startDate, endDate } = req.query;
+    const rows = await leaveService.getCompletedApprovals(tenantId, campusId, username, startDate, endDate);
     return successResponse(res, 'Completed approvals retrieved', rows);
   } catch (err) {
     return errorResponse(res, err.message || 'Failed to load completed approvals', 500);

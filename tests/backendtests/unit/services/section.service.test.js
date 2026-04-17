@@ -78,6 +78,28 @@ describe('Section Service', () => {
       const result = await sectionService.updateSection(1, updateData, tenantId, campusId);
       expect(result.section_name).toBe('Updated');
     });
+
+    test('updates room status when room_id is changed', async () => {
+      const existingSection = { section_id: 1, room_id: 101, capacity: 20, campus_id: campusId };
+      const updateData = { room_id: 102 };
+      const updatedSection = { ...existingSection, ...updateData };
+
+      SectionModel.getById.mockResolvedValue(existingSection);
+      SectionModel.update.mockResolvedValue(updatedSection);
+      RoomModel.getRoomById.mockImplementation((id) => {
+        if (id === 101) return Promise.resolve({ success: true, data: { room_id: 101, capacity: 50, status: 'booked' } });
+        if (id === 102) return Promise.resolve({ success: true, data: { room_id: 102, capacity: 40, status: 'available' } });
+        return Promise.resolve({ success: false });
+      });
+      RoomModel.setRoomBookingStatus.mockResolvedValue({ success: true });
+
+      await sectionService.updateSection(1, updateData, tenantId, campusId);
+
+      // Verify old room status update
+      expect(RoomModel.setRoomBookingStatus).toHaveBeenCalledWith(101, campusId, 'available', 50);
+      // Verify new room status update
+      expect(RoomModel.setRoomBookingStatus).toHaveBeenCalledWith(102, campusId, 'booked', 20);
+    });
   });
 
   describe('deleteSection', () => {

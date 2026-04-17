@@ -140,18 +140,20 @@ describe('Leave Service', () => {
   });
 
   describe('getPendingApprovals', () => {
-    test('returns pending approvals', async () => {
+    test('returns pending approvals with date filter', async () => {
       leaveModel.getPendingApprovalsForUser.mockResolvedValue([{ id: 1 }]);
-      const result = await leaveService.getPendingApprovals('t1', 'c1', 'approver1');
+      const result = await leaveService.getPendingApprovals('t1', 'c1', 'approver1', '2024-05-01', '2024-05-31');
       expect(result).toEqual([{ id: 1 }]);
+      expect(leaveModel.getPendingApprovalsForUser).toHaveBeenCalledWith('approver1', '2024-05-01', '2024-05-31');
     });
   });
 
   describe('getCompletedApprovals', () => {
-    test('returns completed approvals', async () => {
+    test('returns completed approvals with date filter', async () => {
       leaveModel.getCompletedApprovalsForUser.mockResolvedValue([{ id: 1 }]);
-      const result = await leaveService.getCompletedApprovals('t1', 'c1', 'approver1');
+      const result = await leaveService.getCompletedApprovals('t1', 'c1', 'approver1', '2024-05-01', '2024-05-31');
       expect(result).toEqual([{ id: 1 }]);
+      expect(leaveModel.getCompletedApprovalsForUser).toHaveBeenCalledWith('approver1', '2024-05-01', '2024-05-31');
     });
   });
 

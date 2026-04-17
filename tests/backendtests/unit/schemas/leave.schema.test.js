@@ -61,4 +61,38 @@ describe('Leave Schema', () => {
       expect(error).toBeUndefined();
     });
   });
+
+  describe('getPendingApprovals', () => {
+    test('query valid with startDate and endDate', () => {
+      const { error } = schema.getPendingApprovals.query.validate({
+        startDate: '2024-05-01',
+        endDate: '2024-05-31'
+      });
+      expect(error).toBeUndefined();
+    });
+
+    test('query invalid missing startDate', () => {
+      const { error } = schema.getPendingApprovals.query.validate({
+        endDate: '2024-05-31'
+      });
+      expect(error).toBeDefined();
+    });
+
+    test('query invalid missing endDate', () => {
+      const { error } = schema.getPendingApprovals.query.validate({
+        startDate: '2024-05-01'
+      });
+      expect(error).toBeDefined();
+    });
+  });
+
+  describe('getCompletedApprovals', () => {
+    test('query valid with startDate and endDate', () => {
+      const { error } = schema.getCompletedApprovals.query.validate({
+        startDate: '2024-05-01',
+        endDate: '2024-05-31'
+      });
+      expect(error).toBeUndefined();
+    });
+  });
 });

@@ -15,6 +15,11 @@ const params = {
   id: Joi.number().integer().min(1).required()
 };
 
+const dateRangeQuery = Joi.object({
+  startDate: Joi.string().isoDate().required(),
+  endDate: Joi.string().isoDate().required()
+}).unknown(true);
+
 const createLeaveBody = Joi.object({
   leave_date: Joi.string().trim().min(1).required(),
   leave_reason: Joi.string().trim().min(1).required(),
@@ -46,10 +51,12 @@ module.exports = {
     user: userContext
   },
   getPendingApprovals: {
-    user: userContext
+    user: userContext,
+    query: dateRangeQuery
   },
   getCompletedApprovals: {
-    user: userContext
+    user: userContext,
+    query: dateRangeQuery
   },
   updateStatus: {
     user: userContext,

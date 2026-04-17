@@ -87,7 +87,7 @@ const getMyLeaveRequests = async (tenantId, campusId, username) => {
 };
 
 // Get requests where the user's step is pending, including full approver chain
-const getPendingApprovalsForUser = async (username) => {
+const getPendingApprovalsForUser = async (username, startDate, endDate) => {
   const result = await pool.query(
     `SELECT 
        r.id AS id,
@@ -113,22 +113,23 @@ const getPendingApprovalsForUser = async (username) => {
        ) AS steps
      FROM leave_requests r
      JOIN leave_approval_steps s ON s.leave_request_id = r.id
-     WHERE EXISTS (
-       SELECT 1 
-       FROM leave_approval_steps s2
-       WHERE s2.leave_request_id = r.id 
-         AND s2.approver_username = $1 
-         AND s2.status = 'pending'::leave_status
-     )
+     WHERE r.leave_date::date >= $2::date AND r.leave_date::date <= $3::date
+       AND EXISTS (
+         SELECT 1 
+         FROM leave_approval_steps s2
+         WHERE s2.leave_request_id = r.id 
+           AND s2.approver_username = $1 
+           AND s2.status = 'pending'::leave_status
+       )
      GROUP BY r.id
      ORDER BY r.request_date DESC`,
-    [username]
+    [username, startDate, endDate]
   );
   return result.rows;
 };
 
 // Get requests where the user's step is completed (approved/rejected)
-const getCompletedApprovalsForUser = async (username) => {
+const getCompletedApprovalsForUser = async (username, startDate, endDate) => {
   const result = await pool.query(
     `SELECT 
        r.id AS id,
@@ -154,16 +155,17 @@ const getCompletedApprovalsForUser = async (username) => {
        ) AS steps
      FROM leave_requests r
      JOIN leave_approval_steps s ON s.leave_request_id = r.id
-     WHERE EXISTS (
-       SELECT 1 
-       FROM leave_approval_steps s2
-       WHERE s2.leave_request_id = r.id 
-         AND s2.approver_username = $1 
-         AND s2.status IN ('approved'::leave_status, 'rejected'::leave_status)
-     )
+     WHERE r.leave_date::date >= $2::date AND r.leave_date::date <= $3::date
+       AND EXISTS (
+         SELECT 1 
+         FROM leave_approval_steps s2
+         WHERE s2.leave_request_id = r.id 
+           AND s2.approver_username = $1 
+           AND s2.status IN ('approved'::leave_status, 'rejected'::leave_status)
+       )
      GROUP BY r.id
      ORDER BY r.request_date DESC`,
-    [username]
+    [username, startDate, endDate]
   );
   return result.rows;
 };

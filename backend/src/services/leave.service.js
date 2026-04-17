@@ -143,13 +143,13 @@ const getMyLeaveRequests = async (tenantId, campusId, username) => {
   return await leaveModel.getMyLeaveRequests(tenantId, campusId, username);
 };
 
-const getPendingApprovals = async (tenantId, campusId, approverUsername) => {
-  const assigned = await leaveModel.getPendingApprovalsForUser(approverUsername);
+const getPendingApprovals = async (tenantId, campusId, approverUsername, startDate, endDate) => {
+  const assigned = await leaveModel.getPendingApprovalsForUser(approverUsername, startDate, endDate);
   return assigned;
 };
 
-const getCompletedApprovals = async (tenantId, campusId, approverUsername) => {
-  return await leaveModel.getCompletedApprovalsForUser(approverUsername);
+const getCompletedApprovals = async (tenantId, campusId, approverUsername, startDate, endDate) => {
+  return await leaveModel.getCompletedApprovalsForUser(approverUsername, startDate, endDate);
 };
 
 const updateLeaveStatus = async (tenantId, campusId, id, status, status_reason, approverUsername) => {
