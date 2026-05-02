@@ -9,14 +9,15 @@ const ExamResultModel = {
       student_username,
       attendance_status,
       obtained_score,
-      is_passed
+      is_passed,
+      notes
     } = resultData;
 
     const query = `
       INSERT INTO exam_results (
-        tenant_id, campus_id, exam_id, student_username, attendance_status, obtained_score, is_passed
+        tenant_id, campus_id, exam_id, student_username, attendance_status, obtained_score, is_passed, notes
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       RETURNING *;
     `;
 
@@ -27,7 +28,8 @@ const ExamResultModel = {
       student_username,
       attendance_status || 'Present',
       obtained_score !== undefined ? obtained_score : 0.00,
-      is_passed !== undefined ? is_passed : true
+      is_passed !== undefined ? is_passed : true,
+      notes
     ];
 
     const result = await pool.query(query, values);
@@ -51,7 +53,8 @@ const ExamResultModel = {
           student_username,
           attendance_status,
           obtained_score,
-          is_passed
+          is_passed,
+          notes
         } = data;
 
         // Check if result already exists for this exam and student
@@ -66,14 +69,15 @@ const ExamResultModel = {
           // Update existing
           const updateQuery = `
             UPDATE exam_results 
-            SET attendance_status = $1, obtained_score = $2, is_passed = $3
-            WHERE result_id = $4
+            SET attendance_status = $1, obtained_score = $2, is_passed = $3, notes = $4
+            WHERE result_id = $5
             RETURNING *
           `;
           const updateValues = [
             attendance_status || 'Present',
             obtained_score !== undefined ? obtained_score : 0.00,
             is_passed !== undefined ? is_passed : true,
+            notes,
             checkRes.rows[0].result_id
           ];
           const updateRes = await client.query(updateQuery, updateValues);
@@ -82,9 +86,9 @@ const ExamResultModel = {
           // Insert new
           const insertQuery = `
             INSERT INTO exam_results (
-              tenant_id, campus_id, exam_id, student_username, attendance_status, obtained_score, is_passed
+              tenant_id, campus_id, exam_id, student_username, attendance_status, obtained_score, is_passed, notes
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
             RETURNING *
           `;
           const insertValues = [
@@ -94,7 +98,8 @@ const ExamResultModel = {
             student_username,
             attendance_status || 'Present',
             obtained_score !== undefined ? obtained_score : 0.00,
-            is_passed !== undefined ? is_passed : true
+            is_passed !== undefined ? is_passed : true,
+            notes
           ];
           const insertRes = await client.query(insertQuery, insertValues);
           result = insertRes.rows[0];
@@ -145,6 +150,7 @@ const ExamResultModel = {
     addField('attendance_status', resultData.attendance_status);
     addField('obtained_score', resultData.obtained_score);
     addField('is_passed', resultData.is_passed);
+    addField('notes', resultData.notes);
     // tenant_id, campus_id, exam_id, student_username usually don't change for a result record
 
     if (fields.length === 0) return null;

@@ -273,6 +273,7 @@ const EventService = {
                     event_id: newEvent.event_id,
                     subject_name: subjectName,
                     exam_date: examDate,
+                    curriculum_book : eventData.curriculum_book,
                     total_score: eventData.total_score
                 }, tenantId, campusId, client);
             }
@@ -373,6 +374,7 @@ const EventService = {
             const recurrenceRule = eventData.recurrence_rule || updatedEvent.recurrence_rule;
             const startDate = eventData.start_date || updatedEvent.start_date;
             const endDate = eventData.end_date || updatedEvent.end_date;
+            const curriculum_book = eventData.curriculum_book || updatedEvent.curriculum_book;
 
             const desiredDates = recurrenceRule
                 ? getDatesFromRRule(recurrenceRule, startDate, endDate)
@@ -402,7 +404,8 @@ const EventService = {
                         event_id: eventId,
                         subject_name: subjectName,
                         exam_date: d,
-                        total_score: totalScore
+                        total_score: totalScore,
+                        curriculum_book: curriculum_book
                     }, tenantId, campusId);
                 }
             }
