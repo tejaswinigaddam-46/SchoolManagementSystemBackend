@@ -175,14 +175,21 @@ const EventModel = {
 
   // Insert multiple event instances
   insertEventInstances: async (eventId, instances, client = pool) => {
-    if (!instances || instances.length === 0) return [];
+    console.log('=== EventModel.insertEventInstances START ===');
+    console.log('Input eventId:', eventId);
+    console.log('Input instances:', JSON.stringify(instances, null, 2));
+    
+    if (!instances || instances.length === 0) {
+      console.log('No instances to insert, returning []');
+      return [];
+    }
 
     const values = [];
     const placeholders = [];
     let idx = 1;
 
     for (const instance of instances) {
-      placeholders.push(`($${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++})`);
+      placeholders.push(`(${idx++}, ${idx++}, ${idx++}, ${idx++}, ${idx++}, ${idx++}, ${idx++}, ${idx++}, ${idx++})`);
       values.push(
         eventId,
         instance.original_start_date,
@@ -195,6 +202,8 @@ const EventModel = {
         instance.room_id
       );
     }
+    console.log('Generated query values:', values);
+    console.log('Generated placeholders:', placeholders);
 
     const query = `
       INSERT INTO calendar_event_instances (
@@ -204,8 +213,10 @@ const EventModel = {
       VALUES ${placeholders.join(', ')}
       RETURNING *;
     `;
+    console.log('Generated insert query:', query);
 
     const result = await client.query(query, values);
+    console.log('Insert result.rows:', JSON.stringify(result.rows, null, 2));
     return result.rows;
   },
 

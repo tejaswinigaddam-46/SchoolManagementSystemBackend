@@ -3,7 +3,9 @@ jest.mock('@/models/event.model', () => ({
   updateEvent: jest.fn(),
   deleteEvent: jest.fn(),
   upsertInstance: jest.fn(),
-  getEventsByCampus: jest.fn()
+  getEventsByCampus: jest.fn(),
+  insertEventInstances: jest.fn().mockResolvedValue([{ instance_id: 'test-instance-uuid', original_start_date: '2026-01-01' }]),
+  deleteInstancesByEventId: jest.fn()
 }));
 
 jest.mock('@/config/database', () => ({
@@ -190,7 +192,8 @@ describe('Event Service', () => {
       expect.objectContaining({
         recurrence_rule: 'RRULE:FREQ=WEEKLY;BYDAY=MO',
         event_description: 'Updated'
-      })
+      }),
+      expect.any(Object)
     );
   });
 

@@ -66,12 +66,13 @@ const getAttendanceByEventId = async (tenantId, campusId, eventId) => {
         const rows = await attendanceModel.getAttendanceByEventId(eventId);
 
         return rows.map(row => ({
-            attendanceId: row.attendance_id,
+            attendanceId: row.event_attendance_id,
             studentId: row.student_id,
             status: row.attendance_status,
             actualPresentHours: row.actual_present_hours,
             totalScheduledHours: row.total_scheduled_hours,
             academicYearId: row.academic_year_id,
+            eventInstanceId: row.event_instance_id,
             firstName: row.first_name,
             lastName: row.last_name,
             role: row.role
@@ -94,7 +95,7 @@ const saveAttendance = async (data) => {
         await client.query('BEGIN');
 
         const { 
-            attendanceData, eventId, date: inputDate, academicYearId 
+            attendanceData, eventId, eventInstanceId, date: inputDate, academicYearId 
         } = data;
 
         // 1) Get Event (to understand type and for later date/year mapping)
@@ -108,7 +109,7 @@ const saveAttendance = async (data) => {
         const attendanceDate = inputDate || event?.start_date;
         const finalAcademicYearId = academicYearId || event?.academic_year_id;
         
-        logger.info('SERVICE.saveAttendance: Event loaded', { eventType, attendanceDate, campusId: event.campus_id, academicYearId: finalAcademicYearId });
+        logger.info('SERVICE.saveAttendance: Event loaded', { eventType, attendanceDate, campusId: event.campus_id, academicYearId: finalAcademicYearId, eventInstanceId });
 
         if (!attendanceDate) {
              throw new Error('Attendance date cannot be determined (no input date and no event start date)');
@@ -133,6 +134,7 @@ const saveAttendance = async (data) => {
 
         const savedCount = await attendanceModel.upsertAttendanceBatch(client, {
             eventId,
+            eventInstanceId,
             attendanceDate,
             academicYearId: finalAcademicYearId,
             records: upsertList

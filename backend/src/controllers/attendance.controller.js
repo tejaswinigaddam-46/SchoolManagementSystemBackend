@@ -69,7 +69,8 @@ const saveAttendance = async (req, res) => {
             date, 
             academicYearId, 
             attendanceData, // Array of { studentId, status, remarks }
-            eventId // Optional: link to calendar event
+            eventId, // Optional: link to calendar event
+            eventInstanceId // Optional: link to calendar event instance
         } = req.body;
 
         logger.info('Saving attendance records', {
@@ -79,6 +80,8 @@ const saveAttendance = async (req, res) => {
             classId,
             sectionId,
             date,
+            eventId,
+            eventInstanceId,
             studentCount: attendanceData?.length
         });
 
@@ -91,7 +94,8 @@ const saveAttendance = async (req, res) => {
             date,
             academicYearId: academicYearId ? parseInt(academicYearId) : null,
             attendanceData,
-            eventId: eventId ? String(eventId) : null
+            eventId: eventId ? String(eventId) : null,
+            eventInstanceId: eventInstanceId ? String(eventInstanceId) : null
         });
 
         logger.info('Attendance records saved successfully', {

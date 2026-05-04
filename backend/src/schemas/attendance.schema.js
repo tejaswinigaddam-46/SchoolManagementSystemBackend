@@ -37,7 +37,8 @@ const saveAttendanceBody = Joi.object({
     )
     .min(1)
     .required(),
-  eventId: Joi.string().trim().min(1).required()
+  eventId: Joi.string().trim().min(1).required(),
+  eventInstanceId: Joi.string().uuid().required()
 });
 
 module.exports = {

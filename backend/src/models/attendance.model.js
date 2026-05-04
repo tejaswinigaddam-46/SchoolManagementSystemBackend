@@ -58,6 +58,7 @@ const getAttendanceByEventId = async (eventId) => {
             a.actual_present_hours,
             a.total_scheduled_hours,
             a.academic_year_id,
+            a.event_instance_id,
             u.first_name,
             u.last_name,
             u.role
@@ -73,27 +74,29 @@ const getAttendanceByEventId = async (eventId) => {
 /**
  * Upsert attendance record (Insert or Update)
  * @param {Object} client - Database client for transaction
- * @param {Object} data - { eventId, studentId, status, actualPresentHours, totalScheduledHours, attendanceDate, academicYearId }
+ * @param {Object} data - { eventId, eventInstanceId, studentId, status, actualPresentHours, totalScheduledHours, attendanceDate, academicYearId }
  */
-const upsertAttendance = async (client, { eventId, studentId, status, actualPresentHours, totalScheduledHours, attendanceDate, academicYearId }) => {
+const upsertAttendance = async (client, { eventId, eventInstanceId, studentId, status, actualPresentHours, totalScheduledHours, attendanceDate, academicYearId }) => {
     const query = `
         insert into event_attendance (
-            event_id, audience_id, attendance_status, 
+            event_id, event_instance_id, audience_id, attendance_status, 
             actual_present_hours, total_scheduled_hours, 
             attendance_date, academic_year_id,
             created_at, updated_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW())
         ON CONFLICT (event_id, audience_id, attendance_date) 
         DO UPDATE SET 
             attendance_status = EXCLUDED.attendance_status,
             actual_present_hours = EXCLUDED.actual_present_hours,
             total_scheduled_hours = EXCLUDED.total_scheduled_hours,
             academic_year_id = EXCLUDED.academic_year_id,
+            event_instance_id = EXCLUDED.event_instance_id,
             updated_at = NOW()
     `;
 
     await client.query(query, [
         eventId,
+        eventInstanceId || null,
         studentId,
         status,
         actualPresentHours || 0,
@@ -103,11 +106,12 @@ const upsertAttendance = async (client, { eventId, studentId, status, actualPres
     ]);
 };
 
-const upsertAttendanceBatch = async (client, { eventId, attendanceDate, academicYearId, records }) => {
+const upsertAttendanceBatch = async (client, { eventId, eventInstanceId, attendanceDate, academicYearId, records }) => {
     if (!Array.isArray(records) || records.length === 0) return 0;
     for (const record of records) {
         await upsertAttendance(client, {
             eventId,
+            eventInstanceId,
             studentId: record.studentId,
             status: record.status,
             actualPresentHours: record.actual_present_hours,

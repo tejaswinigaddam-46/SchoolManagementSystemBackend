@@ -363,6 +363,12 @@ CREATE TYPE public.event_status_enum AS ENUM (
     'Canceled',          -- Event has been officially canceled
     'Postponed'
 );
+CREATE TYPE curriculum_book_enum AS ENUM (
+    'GOV_SSC_ENGLISH',
+    'GOV_SSC_PHYSICS',
+    'GOV_SSC_CHEMISTRY'
+);
+
 CREATE TABLE calendar_events (
  event_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id UUID NOT NULL REFERENCES public.tenants(tenant_id),
@@ -420,6 +426,7 @@ event_attendance_id SERIAL PRIMARY KEY,
 attendance_date DATE NOT null,
 academic_year_id INT REFERENCES academic_years(academic_year_id),
 event_id UUID NOT NULL REFERENCES calendar_events(event_id) ON DELETE CASCADE,
+event_instance_id UUID references calendar_event_instances(instance_id) not null,
 audience_id BIGINT NOT NULL REFERENCES public.users(user_id) ON DELETE CASCADE,
 attendance_status public.attendance_status_enum NOT NULL,
 total_scheduled_hours DECIMAL(5, 2) NOT NULL,
@@ -598,6 +605,7 @@ CREATE TABLE exams (
     campus_id UUID NOT NULL REFERENCES public.campuses(campus_id),
     event_id UUID NOT NULL REFERENCES calendar_events(event_id) ON DELETE CASCADE,
     subject_name VARCHAR(100) NOT NULL,
+    curriculum_book curriculum_book_enum Not Null,
 exam_date DATE NOT NULL, 
     
     total_score DECIMAL(6, 2) NOT NULL DEFAULT 100.00,
@@ -649,7 +657,9 @@ campus_id UUID NOT NULL REFERENCES public.campuses(campus_id)
 
     attendance_status exam_attendance_status_enum DEFAULT 'Present',
     obtained_score DECIMAL(6, 2) DEFAULT 0.00,
-    is_passed BOOLEAN default true
+    is_passed BOOLEAN default true,
+    notes varchar(100)
+);
 Unique(campus_id,exam_id,student_username)
 );
 
