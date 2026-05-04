@@ -78,6 +78,33 @@ const getAttendanceByEventId = async (eventId, eventInstanceId = null) => {
 };
 
 /**
+ * Get attendance records for a specific event instance
+ * @param {string} eventInstanceId 
+ * @returns {Promise<Array>}
+ */
+const getAttendanceByEventInstanceId = async (eventInstanceId) => {
+    const query = `
+        SELECT 
+            a.event_attendance_id,
+            a.audience_id as student_id,
+            a.attendance_status,
+            a.actual_present_hours,
+            a.total_scheduled_hours,
+            a.academic_year_id,
+            a.event_instance_id,
+            a.event_id,
+            u.first_name,
+            u.last_name,
+            u.role
+        FROM event_attendance a
+        LEFT JOIN users u ON a.audience_id = u.user_id
+        WHERE a.event_instance_id = $1
+    `;
+    const result = await pool.query(query, [String(eventInstanceId)]);
+    return result.rows;
+};
+
+/**
  * Upsert attendance record (Insert or Update)
  * @param {Object} client - Database client for transaction
  * @param {Object} data - { eventId, eventInstanceId, studentId, status, actualPresentHours, totalScheduledHours, attendanceDate, academicYearId }
@@ -290,6 +317,7 @@ module.exports = {
     getUsersByIds,
     getDailyAggregatesForUsers,
     getAttendanceByEventId,
+    getAttendanceByEventInstanceId,
     upsertAttendance,
     upsertAttendanceBatch,
     deleteAttendance,

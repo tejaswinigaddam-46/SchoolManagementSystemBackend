@@ -231,8 +231,36 @@ const getAttendance = async (tenantId, campusId, classId, sectionId, date, acade
     }
 };
 
+/**
+ * Get attendance records for a specific event instance
+ */
+const getAttendanceByEventInstanceId = async (tenantId, campusId, eventInstanceId) => {
+    try {
+        const rows = await attendanceModel.getAttendanceByEventInstanceId(eventInstanceId);
+
+        return rows.map(row => ({
+            attendanceId: row.event_attendance_id,
+            studentId: row.student_id,
+            status: row.attendance_status,
+            actualPresentHours: row.actual_present_hours,
+            totalScheduledHours: row.total_scheduled_hours,
+            academicYearId: row.academic_year_id,
+            eventInstanceId: row.event_instance_id,
+            eventId: row.event_id,
+            firstName: row.first_name,
+            lastName: row.last_name,
+            role: row.role
+        }));
+
+    } catch (error) {
+        logger.error('SERVICE: Error getting attendance by event instance:', error);
+        throw error;
+    }
+};
+
 module.exports = {
     getAttendance,
     saveAttendance,
-    getAttendanceByEventId
+    getAttendanceByEventId,
+    getAttendanceByEventInstanceId
 };

@@ -113,7 +113,37 @@ const saveAttendance = async (req, res) => {
     }
 };
 
+/**
+ * Get attendance records for a specific event instance
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
+const getAttendanceByEventInstanceId = async (req, res) => {
+    try {
+        const { tenantId, campusId } = req.user;
+        const { eventInstanceId } = req.params;
+
+        logger.info('Getting attendance records for event instance', {
+            tenantId,
+            campusId,
+            eventInstanceId
+        });
+
+        const result = await attendanceService.getAttendanceByEventInstanceId(
+            tenantId,
+            campusId,
+            eventInstanceId
+        );
+        return successResponse(res, 'Attendance records retrieved successfully', result);
+
+    } catch (error) {
+        logger.error('Error getting attendance records for event instance:', error);
+        return errorResponse(res, error.message, 500);
+    }
+};
+
 module.exports = {
     getAttendance,
-    saveAttendance
+    saveAttendance,
+    getAttendanceByEventInstanceId
 };

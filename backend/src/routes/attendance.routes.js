@@ -22,4 +22,12 @@ router.post(
   attendanceController.saveAttendance
 );
 
+router.get(
+  '/instance/:eventInstanceId',
+  authenticate,
+  requirePermission(PERMISSIONS.ATTENDANCE_LIST_READ),
+  validate(attendanceSchema.getAttendanceByEventInstanceId),
+  attendanceController.getAttendanceByEventInstanceId
+);
+
 module.exports = router;

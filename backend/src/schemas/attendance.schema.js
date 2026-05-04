@@ -42,6 +42,10 @@ const saveAttendanceBody = Joi.object({
   eventInstanceId: Joi.string().uuid().required()
 });
 
+const getAttendanceByEventInstanceIdParams = Joi.object({
+  eventInstanceId: Joi.string().uuid().required()
+});
+
 module.exports = {
   getAttendance: {
     user: userContextBase,
@@ -50,5 +54,9 @@ module.exports = {
   saveAttendance: {
     user: userContextWithUserId,
     body: saveAttendanceBody
+  },
+  getAttendanceByEventInstanceId: {
+    user: userContextBase,
+    params: getAttendanceByEventInstanceIdParams
   }
 };
