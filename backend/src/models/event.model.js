@@ -173,6 +173,49 @@ const EventModel = {
     return result.rows;
   },
 
+  // Insert multiple event instances
+  insertEventInstances: async (eventId, instances, client = pool) => {
+    if (!instances || instances.length === 0) return [];
+
+    const values = [];
+    const placeholders = [];
+    let idx = 1;
+
+    for (const instance of instances) {
+      placeholders.push(`($${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++})`);
+      values.push(
+        eventId,
+        instance.original_start_date,
+        instance.actual_start_date,
+        instance.actual_end_date,
+        instance.actual_start_time,
+        instance.actual_end_time,
+        instance.is_cancelled || false,
+        instance.specific_description,
+        instance.room_id
+      );
+    }
+
+    const query = `
+      INSERT INTO calendar_event_instances (
+        event_id, original_start_date, actual_start_date, actual_end_date,
+        actual_start_time, actual_end_time, is_cancelled, specific_description, room_id
+      )
+      VALUES ${placeholders.join(', ')}
+      RETURNING *;
+    `;
+
+    const result = await client.query(query, values);
+    return result.rows;
+  },
+
+  // Delete all instances for an event
+  deleteInstancesByEventId: async (eventId, client = pool) => {
+    const query = `DELETE FROM calendar_event_instances WHERE event_id = $1 RETURNING *`;
+    const result = await client.query(query, [eventId]);
+    return result.rows;
+  },
+
   // Get events with instances for a range (optional, for efficient fetching)
   getEventsByCampus: async (campusId, academicYearId) => {
     let query = `

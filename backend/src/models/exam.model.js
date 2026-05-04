@@ -6,6 +6,7 @@ const ExamModel = {
       tenant_id,
       campus_id,
       event_id,
+      event_instance_id,
       subject_name,
       exam_date,
       total_score,
@@ -14,9 +15,9 @@ const ExamModel = {
 
     const query = `
       INSERT INTO exams (
-        tenant_id, campus_id, event_id, subject_name, exam_date, total_score,curriculum_book
+        tenant_id, campus_id, event_id, event_instance_id, subject_name, exam_date, total_score, curriculum_book
       )
-      VALUES ($1, $2, $3, $4, $5, $6,$7)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       RETURNING *;
     `;
 
@@ -24,10 +25,11 @@ const ExamModel = {
       tenant_id,
       campus_id,
       event_id,
+      event_instance_id || null,
       subject_name,
       exam_date,
-      curriculum_book,
-      total_score !== undefined ? total_score : 100.00
+      total_score !== undefined ? total_score : 100.00,
+      curriculum_book
     ];
 
     const db = client || pool;
@@ -91,7 +93,7 @@ const ExamModel = {
     return result.rows;
   },
 
-  updateExam: async (examId, examData) => {
+  updateExam: async (examId, examData, client = pool) => {
     const fields = [];
     const values = [];
     let idx = 1;
@@ -104,8 +106,9 @@ const ExamModel = {
     };
 
     addField('event_id', examData.event_id);
+    addField('event_instance_id', examData.event_instance_id);
     addField('subject_name', examData.subject_name);
-    addField('curriculum_book',examData.curriculum_book);
+    addField('curriculum_book', examData.curriculum_book);
     addField('exam_date', examData.exam_date);
     addField('total_score', examData.total_score);
     // passing_score is generated, cannot be updated directly
@@ -120,7 +123,8 @@ const ExamModel = {
       RETURNING *;
     `;
 
-    const result = await pool.query(query, values);
+    const db = client || pool;
+    const result = await db.query(query, values);
     return result.rows[0];
   },
 

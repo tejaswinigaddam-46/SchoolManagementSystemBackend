@@ -257,22 +257,35 @@ const EventService = {
 
         const newEvent = await EventModel.createEvent(data, client);
 
+        // Generate event instances
+        const instanceDates = newEvent.recurrence_rule
+            ? getDatesFromRRule(newEvent.recurrence_rule, newEvent.start_date, newEvent.end_date)
+            : [toDateOnlyString(newEvent.start_date)];
+
+        const instances = instanceDates.map(date => ({
+            original_start_date: date,
+            actual_start_date: date,
+            actual_end_date: toDateOnlyString(newEvent.end_date),
+            actual_start_time: newEvent.start_time,
+            actual_end_time: newEvent.end_time,
+            is_cancelled: false,
+            specific_description: null,
+            room_id: newEvent.room_id
+        }));
+
+        const insertedInstances = await EventModel.insertEventInstances(newEvent.event_id, instances, client);
+
         if (eventData.event_type === 'Test') {
             const subjectName = eventData.subject_name || eventData.event_name;
-            const dates = eventData.recurrence_rule
-                ? getDatesFromRRule(eventData.recurrence_rule, newEvent.start_date, newEvent.end_date)
-                : [];
-            const dateStrs = (Array.isArray(dates) && dates.length > 0)
-                ? dates
-                : [toDateOnlyString(newEvent.start_date) || String(newEvent.start_date)];
-
-            for (const examDate of dateStrs) {
+            
+            for (const instance of insertedInstances) {
                 await ExamService.createExam({
                     tenant_id: tenantId,
                     campus_id: campusId,
                     event_id: newEvent.event_id,
+                    event_instance_id: instance.instance_id,
                     subject_name: subjectName,
-                    exam_date: examDate,
+                    exam_date: instance.original_start_date,
                     curriculum_book : eventData.curriculum_book,
                     total_score: eventData.total_score
                 }, tenantId, campusId, client);
@@ -363,57 +376,84 @@ const EventService = {
 
     } else {
         // Scenario 3: Update all recurrence events (or simple update for non-recurring)
-        // Just update calendar_events
-        const updatedEvent = await EventModel.updateEvent(eventId, eventData);
+        const client = await pool.connect();
+        try {
+            await client.query('BEGIN');
+            
+            // Update calendar_events
+            const updatedEvent = await EventModel.updateEvent(eventId, eventData, client);
 
-        const finalEventType = eventData.event_type || updatedEvent.event_type;
+            // Delete old instances
+            await EventModel.deleteInstancesByEventId(eventId, client);
 
-        if (finalEventType === 'Test') {
-            const subjectName = eventData.subject_name || updatedEvent.event_name;
-            const totalScore = eventData.total_score !== undefined ? eventData.total_score : undefined;
-            const recurrenceRule = eventData.recurrence_rule || updatedEvent.recurrence_rule;
-            const startDate = eventData.start_date || updatedEvent.start_date;
-            const endDate = eventData.end_date || updatedEvent.end_date;
-            const curriculum_book = eventData.curriculum_book || updatedEvent.curriculum_book;
+            // Generate new instances
+            const instanceDates = updatedEvent.recurrence_rule
+                ? getDatesFromRRule(updatedEvent.recurrence_rule, updatedEvent.start_date, updatedEvent.end_date)
+                : [toDateOnlyString(updatedEvent.start_date)];
 
-            const desiredDates = recurrenceRule
-                ? getDatesFromRRule(recurrenceRule, startDate, endDate)
-                : [];
-            const desired = desiredDates.length > 0 ? desiredDates : [toDateOnlyString(startDate) || String(startDate)];
+            const instances = instanceDates.map(date => ({
+                original_start_date: date,
+                actual_start_date: date,
+                actual_end_date: toDateOnlyString(updatedEvent.end_date),
+                actual_start_time: updatedEvent.start_time,
+                actual_end_time: updatedEvent.end_time,
+                is_cancelled: false,
+                specific_description: null,
+                room_id: updatedEvent.room_id
+            }));
 
-            const existing = await ExamService.getExamsByEventId(eventId);
-            const existingByDate = new Map();
-            for (const ex of (existing || [])) {
-                const d = ex.exam_date ? toDateOnlyString(ex.exam_date) : null;
-                if (d) existingByDate.set(d, ex);
-            }
+            const insertedInstances = await EventModel.insertEventInstances(updatedEvent.event_id, instances, client);
 
-            for (const d of desired) {
-                const ex = existingByDate.get(d);
-                if (ex) {
-                    const update = {};
-                    if (eventData.subject_name !== undefined) update.subject_name = subjectName;
-                    if (eventData.total_score !== undefined) update.total_score = totalScore;
-                    if (Object.keys(update).length > 0) {
-                        await ExamService.updateExam(ex.exam_id, update);
-                    }
-                } else {
-                    await ExamService.createExam({
-                        tenant_id: tenantId,
-                        campus_id: campusId,
-                        event_id: eventId,
-                        subject_name: subjectName,
-                        exam_date: d,
-                        total_score: totalScore,
-                        curriculum_book: curriculum_book
-                    }, tenantId, campusId);
+            const finalEventType = eventData.event_type || updatedEvent.event_type;
+
+            if (finalEventType === 'Test') {
+                const subjectName = eventData.subject_name || updatedEvent.event_name;
+                const totalScore = eventData.total_score !== undefined ? eventData.total_score : undefined;
+                const curriculum_book = eventData.curriculum_book || updatedEvent.curriculum_book;
+
+                const existing = await ExamService.getExamsByEventId(eventId);
+                const existingByDate = new Map();
+                for (const ex of (existing || [])) {
+                    const d = ex.exam_date ? toDateOnlyString(ex.exam_date) : null;
+                    if (d) existingByDate.set(d, ex);
                 }
+
+                for (const instance of insertedInstances) {
+                    const d = instance.original_start_date;
+                    const ex = existingByDate.get(d);
+                    if (ex) {
+                        const update = {};
+                        if (eventData.subject_name !== undefined) update.subject_name = subjectName;
+                        if (eventData.total_score !== undefined) update.total_score = totalScore;
+                        update.event_instance_id = instance.instance_id;
+                        if (Object.keys(update).length > 0) {
+                            await ExamModel.updateExam(ex.exam_id, update, client);
+                        }
+                    } else {
+                        await ExamService.createExam({
+                            tenant_id: tenantId,
+                            campus_id: campusId,
+                            event_id: eventId,
+                            event_instance_id: instance.instance_id,
+                            subject_name: subjectName,
+                            exam_date: d,
+                            total_score: totalScore,
+                            curriculum_book: curriculum_book
+                        }, tenantId, campusId, client);
+                    }
+                }
+            } else {
+                await ExamService.deleteExamsByEventId(eventId);
             }
-        } else {
-            await ExamService.deleteExamsByEventId(eventId);
+            
+            await client.query('COMMIT');
+            return updatedEvent;
+        } catch (error) {
+            await client.query('ROLLBACK');
+            throw error;
+        } finally {
+            client.release();
         }
-        
-        return updatedEvent;
     }
   },
 

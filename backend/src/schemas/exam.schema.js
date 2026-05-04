@@ -15,6 +15,7 @@ const params = {
 
 const createExamBody = Joi.object({
   event_id: Joi.string().trim().uuid().min(1).required(),
+  event_instance_id: Joi.string().trim().uuid().min(1).optional(),
   subject_name: Joi.string().trim().min(1).required(),
   exam_date: Joi.string().trim().min(1).required(),
   total_score: Joi.number().min(0).optional()
@@ -22,6 +23,7 @@ const createExamBody = Joi.object({
 
 const updateExamBody = Joi.object({
   event_id: Joi.string().trim().uuid().min(1).optional(),
+  event_instance_id: Joi.string().trim().uuid().min(1).optional(),
   subject_name: Joi.string().trim().min(1).optional(),
   exam_date: Joi.string().trim().min(1).optional(),
   total_score: Joi.number().min(0).optional()

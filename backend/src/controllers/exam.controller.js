@@ -14,7 +14,8 @@ const createExamController = async (req, res) => {
 const updateExamController = async (req, res) => {
   try {
     const { id } = req.params;
-    const exam = await ExamService.updateExam(id, req.body);
+    const { tenantId, campusId } = req.user;
+    const exam = await ExamService.updateExam(id, req.body, tenantId, campusId);
     res.status(200).json({ success: true, data: exam });
   } catch (error) {
     console.error('Update Exam Error:', error);

@@ -16,7 +16,7 @@ const createBody = Joi.object({
   student_username: Joi.string().trim().min(3).required(),
   attendance_status: Joi.string().trim().valid('Present','Absent').optional(),
   obtained_score: Joi.number().min(0).optional(),
-  notes: Joi.string().trim().optional()
+  notes: Joi.string().trim().allow('').optional()
 }).required();
 
 const bulkBody = Joi.object({
@@ -25,7 +25,7 @@ const bulkBody = Joi.object({
     student_username: Joi.string().trim().min(3).required(),
     attendance_status: Joi.string().trim().valid('Present','Absent').optional(),
     obtained_score: Joi.number().min(0).optional(),
-    notes: Joi.string().trim().optional()
+    notes: Joi.string().trim().allow('').optional()
   })).min(1).required()
 });
 
@@ -33,7 +33,7 @@ const updateBody = Joi.object({
   attendance_status: Joi.string().trim().valid('Present','Absent').optional(),
   obtained_score: Joi.number().min(0).optional(),
   is_passed: Joi.boolean().optional(),
-  notes: Joi.string().trim().optional()
+  notes: Joi.string().trim().allow('').optional()
 }).min(1);
 
 module.exports = {
