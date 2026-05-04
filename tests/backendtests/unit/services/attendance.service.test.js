@@ -28,20 +28,21 @@ describe('Attendance Service', () => {
   describe('getAttendanceByEventId', () => {
     test('maps rows to response format', async () => {
       const mockattendanceObject = [{
-          attendance_id: 1,
+          event_attendance_id: 1,
           student_id: 10,
           attendance_status: 'Present',
           actual_present_hours: 1,
           total_scheduled_hours: 2,
           academic_year_id: 5,
+          event_instance_id: 'test-instance-id',
           first_name: 'A',
           last_name: 'B',
           role: 'Student'
       }];
       attendanceModel.getAttendanceByEventId.mockResolvedValue(mockattendanceObject);
 
-      const res = await attendanceService.getAttendanceByEventId('t1', 'c1', 'evt-1');
-      expect(attendanceModel.getAttendanceByEventId).toHaveBeenCalledWith('evt-1');
+      const res = await attendanceService.getAttendanceByEventId('t1', 'c1', 'evt-1', 'test-instance-id');
+      expect(attendanceModel.getAttendanceByEventId).toHaveBeenCalledWith('evt-1', 'test-instance-id');
       expect(res).toEqual([
         {
           attendanceId: 1,
@@ -50,6 +51,7 @@ describe('Attendance Service', () => {
           actualPresentHours: 1,
           totalScheduledHours: 2,
           academicYearId: 5,
+          eventInstanceId: 'test-instance-id',
           firstName: 'A',
           lastName: 'B',
           role: 'Student'
@@ -87,6 +89,7 @@ describe('Attendance Service', () => {
           { studentId: 2, status: 'Absent', actual_present_hours: 0.5, total_scheduled_hours: 1 }
         ],
         eventId: 'evt-1',
+        eventInstanceId: 'test-instance-id',
         date: '2026-01-01',
         academicYearId: 3
       };
@@ -100,6 +103,7 @@ describe('Attendance Service', () => {
         client,
         expect.objectContaining({
           eventId: 'evt-1',
+          eventInstanceId: 'test-instance-id',
           attendanceDate: '2026-01-01',
           academicYearId: 3,
           records: expect.any(Array)

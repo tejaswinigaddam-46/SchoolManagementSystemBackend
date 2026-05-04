@@ -189,7 +189,7 @@ const EventModel = {
     let idx = 1;
 
     for (const instance of instances) {
-      placeholders.push(`(${idx++}, ${idx++}, ${idx++}, ${idx++}, ${idx++}, ${idx++}, ${idx++}, ${idx++}, ${idx++})`);
+      placeholders.push(`($${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++}, $${idx++})`);
       values.push(
         eventId,
         instance.original_start_date,

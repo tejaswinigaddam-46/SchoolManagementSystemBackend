@@ -1,5 +1,6 @@
 const EventModel = require('../models/event.model');
 const { ExamService } = require('./exam.service');
+const ExamModel = require('../models/exam.model');
 const { getAcademicYearById } = require('./academic.service');
 const { pool } = require('../config/database');
 
@@ -209,9 +210,6 @@ const getDatesFromRRule = (rrule, startDate, endDate) => {
 
 const EventService = {
   createEvent: async (eventData, tenantId, campusId, userId) => {
-    console.log('=== EventService.createEvent START ===');
-    console.log('Input eventData:', JSON.stringify(eventData, null, 2));
-    
     const client = await pool.connect();
     try {
         await client.query('BEGIN');
@@ -220,33 +218,31 @@ const EventService = {
         if (!eventData.recurrence_rule && eventData.repeat && eventData.frequency) {
             eventData.recurrence_rule = createWeeklyRRuleFromFrequency(eventData.repeat, eventData.frequency, eventData.until);
         }
-        console.log('After recurrence_rule generation, eventData:', JSON.stringify(eventData, null, 2));
+        if (eventData.repeat === 'no') {
+            eventData.recurrence_rule = null;
+        }
 
         // Fix time format
         if (eventData.start_time) {
             if (eventData.start_time.includes('T')) {
                  const { date, time } = toISTDateTimeParts(eventData.start_time);
-                 console.log('start_time includes T, toISTDateTimeParts result:', { date, time });
                  if (date && time) {
                      eventData.start_date = date;
                      eventData.start_time = time;
                  }
             } else {
                  eventData.start_time = extractTimeFromISO(eventData.start_time);
-                 console.log('start_time does not include T, extractTimeFromISO result:', eventData.start_time);
             }
         }
         if (eventData.end_time) {
             if (eventData.end_time.includes('T')) {
                  const { date, time } = toISTDateTimeParts(eventData.end_time);
-                 console.log('end_time includes T, toISTDateTimeParts result:', { date, time });
                  if (date && time) {
                      eventData.end_date = date;
                      eventData.end_time = time;
                  }
             } else {
                  eventData.end_time = extractTimeFromISO(eventData.end_time);
-                 console.log('end_time does not include T, extractTimeFromISO result:', eventData.end_time);
             }
         }
         
@@ -262,38 +258,37 @@ const EventService = {
           campus_id: campusId,
           scheduled_by: userId
         };
-        console.log('Data to create event:', JSON.stringify(data, null, 2));
 
         const newEvent = await EventModel.createEvent(data, client);
-        console.log('Created newEvent:', JSON.stringify(newEvent, null, 2));
+        const startDate = toDateOnlyString(newEvent.start_date) || toDateOnlyString(eventData.start_date);
+        const endDate = toDateOnlyString(newEvent.end_date) || toDateOnlyString(eventData.end_date) || startDate;
 
-        // Generate event instances
-        const instanceDates = newEvent.recurrence_rule
-            ? getDatesFromRRule(newEvent.recurrence_rule, newEvent.start_date, newEvent.end_date)
-            : [toDateOnlyString(newEvent.start_date)];
-        console.log('Generated instanceDates:', instanceDates);
+        // Generate event instances. Non-recurring events must always create one instance.
+        const instanceDates = (newEvent.recurrence_rule
+            ? getDatesFromRRule(newEvent.recurrence_rule, startDate, endDate)
+            : [startDate]).filter(Boolean);
+        if (instanceDates.length === 0) {
+            throw new Error('Failed to create event instance: invalid start/end date');
+        }
 
         const instances = instanceDates.map(date => ({
             original_start_date: date,
             actual_start_date: date,
-            actual_end_date: toDateOnlyString(newEvent.end_date),
+            actual_end_date: date,
             actual_start_time: newEvent.start_time,
             actual_end_time: newEvent.end_time,
             is_cancelled: false,
             specific_description: null,
             room_id: newEvent.room_id
         }));
-        console.log('Prepared instances array:', JSON.stringify(instances, null, 2));
 
         const insertedInstances = await EventModel.insertEventInstances(newEvent.event_id, instances, client);
-        console.log('Inserted instances:', JSON.stringify(insertedInstances, null, 2));
 
         if (eventData.event_type === 'Test') {
             const subjectName = eventData.subject_name || eventData.event_name;
-            console.log('Event type is Test, creating exams for instances:', insertedInstances);
+            const curriculumBook = eventData.curriculum_book;
             
             for (const instance of insertedInstances) {
-                console.log('Creating exam for instance:', instance.instance_id);
                 await ExamService.createExam({
                     tenant_id: tenantId,
                     campus_id: campusId,
@@ -301,7 +296,7 @@ const EventService = {
                     event_instance_id: instance.instance_id,
                     subject_name: subjectName,
                     exam_date: instance.original_start_date,
-                    curriculum_book : eventData.curriculum_book,
+                    curriculum_book: curriculumBook,
                     total_score: eventData.total_score
                 }, tenantId, campusId, client);
             }
@@ -409,7 +404,7 @@ const EventService = {
             const instances = instanceDates.map(date => ({
                 original_start_date: date,
                 actual_start_date: date,
-                actual_end_date: toDateOnlyString(updatedEvent.end_date),
+                actual_end_date: date,
                 actual_start_time: updatedEvent.start_time,
                 actual_end_time: updatedEvent.end_time,
                 is_cancelled: false,

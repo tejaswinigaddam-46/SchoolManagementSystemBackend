@@ -61,9 +61,9 @@ const buildUserAttendanceRecords = (impactedIdsSet, usersMap, aggMap) => {
 /**
  * Get attendance records for a specific event
  */
-const getAttendanceByEventId = async (tenantId, campusId, eventId) => {
+const getAttendanceByEventId = async (tenantId, campusId, eventId, eventInstanceId) => {
     try {
-        const rows = await attendanceModel.getAttendanceByEventId(eventId);
+        const rows = await attendanceModel.getAttendanceByEventId(eventId, eventInstanceId);
 
         return rows.map(row => ({
             attendanceId: row.event_attendance_id,

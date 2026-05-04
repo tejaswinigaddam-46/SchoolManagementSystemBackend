@@ -12,7 +12,7 @@ const logger = require('../utils/logger');
 const getAttendance = async (req, res) => {
     try {
         const { tenantId, campusId } = req.user;
-        const { classId, sectionId, date, academicYearId, eventId } = req.query;
+        const { classId, sectionId, date, academicYearId, eventId, eventInstanceId } = req.query;
 
         logger.info('Getting attendance records', {
             tenantId,
@@ -21,14 +21,16 @@ const getAttendance = async (req, res) => {
             sectionId,
             date,
             academicYearId,
-            eventId
+            eventId,
+            eventInstanceId
         });
 
         if (eventId) {
             const result = await attendanceService.getAttendanceByEventId(
                 tenantId,
                 campusId,
-                eventId
+                eventId,
+                eventInstanceId
             );
             return successResponse(res, 'Attendance records retrieved successfully', result);
         }

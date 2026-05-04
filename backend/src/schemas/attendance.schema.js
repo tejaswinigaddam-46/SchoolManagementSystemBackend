@@ -11,7 +11,8 @@ const userContextWithUserId = userContextBase.keys({
 
 const getAttendanceQuery = Joi.alternatives().try(
   Joi.object({
-    eventId: Joi.string().trim().min(1).required()
+    eventId: Joi.string().trim().min(1).required(),
+    eventInstanceId: Joi.string().uuid().optional()
   }),
   Joi.object({
     classId: Joi.number().integer().min(1).required(),

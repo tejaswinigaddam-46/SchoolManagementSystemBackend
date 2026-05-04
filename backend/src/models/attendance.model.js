@@ -49,8 +49,8 @@ const getDailyAggregatesForUsers = async (client, attendanceDate, userIds) => {
  * @param {string} eventId 
  * @returns {Promise<Array>}
  */
-const getAttendanceByEventId = async (eventId) => {
-    const query = `
+const getAttendanceByEventId = async (eventId, eventInstanceId = null) => {
+    let query = `
         SELECT 
             a.event_attendance_id,
             a.audience_id as student_id,
@@ -66,8 +66,14 @@ const getAttendanceByEventId = async (eventId) => {
         LEFT JOIN users u ON a.audience_id = u.user_id
         WHERE a.event_id::text = $1
     `;
-    
-    const result = await pool.query(query, [String(eventId)]);
+    const params = [String(eventId)];
+
+    if (eventInstanceId) {
+        query += ` AND a.event_instance_id = $2`;
+        params.push(String(eventInstanceId));
+    }
+
+    const result = await pool.query(query, params);
     return result.rows;
 };
 
@@ -129,7 +135,7 @@ const upsertAttendanceBatch = async (client, { eventId, eventInstanceId, attenda
  * @param {string} eventId 
  * @param {Array<number|string>} studentIds 
  */
-const deleteAttendance = async (client, eventId, studentIds) => {
+const deleteAttendance = async (client, eventId, eventInstanceId, studentIds) => {
     // 1. Get Event Details (Campus, Date) needed for sync BEFORE deleting
     // We need to know the date to update user_attendance.
     const eventQuery = `SELECT campus_id, start_date, academic_year_id FROM calendar_events WHERE event_id = $1`;
@@ -155,10 +161,12 @@ const deleteAttendance = async (client, eventId, studentIds) => {
     // 2. Perform Delete
     const query = `
         DELETE FROM event_attendance 
-        WHERE event_id = $1 AND audience_id = ANY($2::bigint[])
+        WHERE event_id = $1
+          AND event_instance_id = $2
+          AND audience_id = ANY($3::bigint[])
         RETURNING audience_id
     `;
-    const deleteRes = await client.query(query, [eventId, studentIds]);
+    const deleteRes = await client.query(query, [eventId, eventInstanceId, studentIds]);
     const deletedStudentIds = deleteRes.rows.map(r => r.audience_id);
 
     // 3. Sync User Attendance for deleted students

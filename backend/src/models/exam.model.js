@@ -1,5 +1,14 @@
 const { pool } = require('../config/database');
 
+const buildInsertExamQuery = (columns) => {
+  const placeholders = columns.map((_, idx) => `$${idx + 1}`).join(', ');
+  return `
+      INSERT INTO exams (${columns.join(', ')})
+      VALUES (${placeholders})
+      RETURNING *;
+    `;
+};
+
 const ExamModel = {
   createExam: async (examData, client = pool) => {
     const {
@@ -13,28 +22,45 @@ const ExamModel = {
       curriculum_book
     } = examData;
 
-    const query = `
-      INSERT INTO exams (
-        tenant_id, campus_id, event_id, event_instance_id, subject_name, exam_date, total_score, curriculum_book
-      )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-      RETURNING *;
-    `;
-
-    const values = [
+    const db = client || pool;
+    const data = {
       tenant_id,
       campus_id,
       event_id,
-      event_instance_id || null,
+      event_instance_id: event_instance_id || null,
       subject_name,
       exam_date,
-      total_score !== undefined ? total_score : 100.00,
+      total_score: total_score !== undefined ? total_score : 100.0,
       curriculum_book
+    };
+
+    // Support both old/new DB schemas gracefully:
+    // 1) with event_instance_id + curriculum_book
+    // 2) without event_instance_id
+    // 3) without both columns
+    const columnAttempts = [
+      ['tenant_id', 'campus_id', 'event_id', 'event_instance_id', 'subject_name', 'exam_date', 'total_score', 'curriculum_book'],
+      ['tenant_id', 'campus_id', 'event_id', 'subject_name', 'exam_date', 'total_score', 'curriculum_book'],
+      ['tenant_id', 'campus_id', 'event_id', 'subject_name', 'exam_date', 'total_score']
     ];
 
-    const db = client || pool;
-    const result = await db.query(query, values);
-    return result.rows[0];
+    let lastError;
+    for (const columns of columnAttempts) {
+      try {
+        const query = buildInsertExamQuery(columns);
+        const values = columns.map((c) => data[c]);
+        const result = await db.query(query, values);
+        return result.rows[0];
+      } catch (error) {
+        lastError = error;
+        // Try next shape only for undefined column errors.
+        if (error?.code !== '42703') {
+          throw error;
+        }
+      }
+    }
+
+    throw lastError;
   },
 
   getExamById: async (examId) => {
