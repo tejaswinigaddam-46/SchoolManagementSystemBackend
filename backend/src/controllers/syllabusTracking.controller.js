@@ -19,7 +19,10 @@ const syllabusTrackingController = {
         section_subject_id: req.query.section_subject_id ? parseInt(req.query.section_subject_id) : undefined,
         chapter_id: req.query.chapter_id ? parseInt(req.query.chapter_id) : undefined,
         topic_id: req.query.topic_id ? parseInt(req.query.topic_id) : undefined,
-        subtopic_id: req.query.subtopic_id ? parseInt(req.query.subtopic_id) : undefined
+        subtopic_id: req.query.subtopic_id ? parseInt(req.query.subtopic_id) : undefined,
+        academic_year_id: req.query.academic_year_id ? parseInt(req.query.academic_year_id) : undefined,
+        section_id: req.query.section_id ? parseInt(req.query.section_id) : undefined,
+        subject_name: req.query.subject_name ? String(req.query.subject_name) : undefined
       };
       const plans = await SyllabusTrackingService.listPlans(filters);
       return successResponse(res, 'Plans fetched successfully', { plans });
@@ -36,10 +39,27 @@ const syllabusTrackingController = {
         payload.created_by = req.user?.user_id ?? req.user?.userId ?? null;
       }
       const plan = await SyllabusTrackingService.createPlan(payload);
+      if (plan && plan.plans && Array.isArray(plan.plans)) {
+        return successResponse(res, 'Plans created successfully', { result: plan }, 201);
+      }
       return successResponse(res, 'Plan created successfully', { plan }, 201);
     } catch (error) {
       logger.error('Error in createPlan controller:', error);
       return errorResponse(res, error.message || 'Failed to create plan', statusFromError(error));
+    }
+  },
+
+  replacePlans: async (req, res) => {
+    try {
+      const payload = { ...req.body };
+      if (payload.created_by === undefined || payload.created_by === null) {
+        payload.created_by = req.user?.user_id ?? req.user?.userId ?? null;
+      }
+      const result = await SyllabusTrackingService.replacePlansByContext(payload);
+      return successResponse(res, 'Plans replaced successfully', { result });
+    } catch (error) {
+      logger.error('Error in replacePlans controller:', error);
+      return errorResponse(res, error.message || 'Failed to replace plans', statusFromError(error));
     }
   },
 

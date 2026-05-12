@@ -41,6 +41,45 @@ const createPlanBody = Joi.object({
   created_by: Joi.number().integer().min(1).allow(null).optional()
 }).custom(planLevelRule, 'plan level validation').unknown(true);
 
+const planTreeBody = Joi.array().items(
+  Joi.object({
+    chapter_id: intId.required(),
+    planned_hours: numberOrNull.optional(),
+    planned_start_date: dateOrNull.optional(),
+    planned_end_date: dateOrNull.optional(),
+    topics: Joi.array().items(
+      Joi.object({
+        topic_id: intId.required(),
+        planned_hours: numberOrNull.optional(),
+        planned_start_date: dateOrNull.optional(),
+        planned_end_date: dateOrNull.optional(),
+        subtopics: Joi.array().items(
+          Joi.object({
+            subtopic_id: intId.required(),
+            planned_hours: numberOrNull.optional(),
+            planned_start_date: dateOrNull.optional(),
+            planned_end_date: dateOrNull.optional()
+          }).unknown(true)
+        ).optional()
+      }).unknown(true)
+    ).optional()
+  }).unknown(true)
+).min(1);
+
+const createPlanBulkBody = Joi.object({
+  academic_year_id: intId.required(),
+  section_id: intId.required(),
+  subject_name: Joi.string().trim().min(1).max(255).required(),
+  plan_tree: planTreeBody.optional(),
+  chapters: planTreeBody.optional(),
+  created_by: Joi.number().integer().min(1).allow(null).optional()
+}).custom((obj, helpers) => {
+  if (!obj.plan_tree && !obj.chapters) {
+    return helpers.error('any.required');
+  }
+  return obj;
+}).unknown(true);
+
 const updatePlanBody = Joi.object({
   section_subject_id: intId.optional(),
   chapter_id: intIdOrNull.optional(),
@@ -86,12 +125,19 @@ module.exports = {
       section_subject_id: intId.optional(),
       chapter_id: intId.optional(),
       topic_id: intId.optional(),
-      subtopic_id: intId.optional()
+      subtopic_id: intId.optional(),
+      academic_year_id: intId.optional(),
+      section_id: intId.optional(),
+      subject_name: Joi.string().trim().min(1).max(255).optional()
     })
   },
   createPlan: {
     user: userContext,
-    body: createPlanBody
+    body: Joi.alternatives().try(createPlanBody, createPlanBulkBody)
+  },
+  replacePlans: {
+    user: userContext,
+    body: createPlanBulkBody
   },
   getPlanById: {
     user: userContext,

@@ -22,6 +22,14 @@ router.post(
   syllabusTrackingController.createPlan
 );
 
+router.put(
+  '/plans/replace',
+  authenticate,
+  requirePermission(PERMISSIONS.SYLLABUS_PLAN_EDIT),
+  validate(syllabusTrackingSchema.replacePlans),
+  syllabusTrackingController.replacePlans
+);
+
 router.get(
   '/plans/:planId',
   authenticate,

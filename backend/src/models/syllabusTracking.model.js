@@ -46,6 +46,32 @@ const buildUpdate = (data, allowed, idField, idValue) => {
 };
 
 const SyllabusTrackingModel = {
+  async getCurriculumIdByAcademicYearId(academic_year_id) {
+    const query = `SELECT curriculum_id FROM academic_years WHERE academic_year_id = $1`;
+    const result = await pool.query(query, [academic_year_id]);
+    return result.rows[0];
+  },
+
+  async getSubjectIdByNameAndCurriculum(subject_name, curriculum_id) {
+    const query = `SELECT subject_id FROM subjects WHERE subject_name = $1 AND curriculum_id = $2`;
+    const result = await pool.query(query, [subject_name, curriculum_id]);
+    return result.rows[0];
+  },
+
+  async getSectionSubjectIdBySectionAndSubjectAndAcademicYear(section_id, subject_id, academic_year_id) {
+    const query = `
+      SELECT ss.section_subject_id
+      FROM section_subjects ss
+      JOIN class_sections cs ON ss.section_id = cs.section_id
+      WHERE ss.section_id = $1
+        AND ss.subject_id = $2
+        AND cs.academic_year_id = $3
+      LIMIT 1
+    `;
+    const result = await pool.query(query, [section_id, subject_id, academic_year_id]);
+    return result.rows[0];
+  },
+
   async listPlans(filters = {}) {
     const { clause, values } = buildWhere(filters, ['section_subject_id', 'chapter_id', 'topic_id', 'subtopic_id']);
     const query = `
@@ -58,12 +84,46 @@ const SyllabusTrackingModel = {
     return result.rows;
   },
 
+  async deletePlansBySectionSubjectId(section_subject_id, client = pool) {
+    const query = `DELETE FROM section_syllabus_plan WHERE section_subject_id = $1`;
+    const result = await client.query(query, [section_subject_id]);
+    return { deleted: result.rowCount };
+  },
+
+  async bulkInsertPlans(rows, client = pool) {
+    const query = `
+      INSERT INTO section_syllabus_plan
+        (section_subject_id, chapter_id, topic_id, subtopic_id, planned_hours, planned_start_date, planned_end_date, created_by)
+      VALUES
+        ($1, $2, $3, $4, $5, $6, $7, $8)
+        ON CONFLICT DO NOTHING
+      RETURNING *
+    `;
+    const inserted = [];
+    for (const r of rows) {
+      const values = [
+        r.section_subject_id,
+        r.chapter_id ?? null,
+        r.topic_id ?? null,
+        r.subtopic_id ?? null,
+        r.planned_hours ?? null,
+        r.planned_start_date ?? null,
+        r.planned_end_date ?? null,
+        r.created_by ?? null
+      ];
+      const result = await client.query(query, values);
+      inserted.push(result.rows[0]);
+    }
+    return inserted;
+  },
+
   async createPlan(data) {
     const query = `
       INSERT INTO section_syllabus_plan
         (section_subject_id, chapter_id, topic_id, subtopic_id, planned_hours, planned_start_date, planned_end_date, created_by)
       VALUES
         ($1, $2, $3, $4, $5, $6, $7, $8)
+        ON CONFLICT DO NOTHING;
       RETURNING *
     `;
     const values = [
