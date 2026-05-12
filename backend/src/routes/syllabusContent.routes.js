@@ -95,7 +95,7 @@ router.delete(
 );
 
 router.get(
-  '/topics',
+  '/chapters/:chapterId/topics',
   authenticate,
   requirePermission(PERMISSIONS.SYLLABUS_TOPIC_LIST_READ),
   validate(syllabusContentSchema.getTopics),
@@ -135,7 +135,7 @@ router.delete(
 );
 
 router.get(
-  '/subtopics',
+  '/topics/:topicId/subtopics',
   authenticate,
   requirePermission(PERMISSIONS.SYLLABUS_SUBTOPIC_LIST_READ),
   validate(syllabusContentSchema.getSubtopics),

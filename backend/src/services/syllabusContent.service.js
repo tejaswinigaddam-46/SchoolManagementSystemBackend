@@ -175,8 +175,8 @@ const SyllabusContentService = {
     return ensureFound(row, 'Chapter not found');
   },
 
-  async listTopics(filters) {
-    return await SyllabusContentModel.listTopics(filters);
+  async listTopicsByChapterId(chapterId) {
+    return await SyllabusContentModel.listTopicsByChapterId(chapterId);
   },
   async createTopic(data) {
     try {
@@ -202,8 +202,8 @@ const SyllabusContentService = {
     return ensureFound(row, 'Topic not found');
   },
 
-  async listSubtopics(filters) {
-    return await SyllabusContentModel.listSubtopics(filters);
+  async listSubtopicsByTopicId(topicId) {
+    return await SyllabusContentModel.listSubtopicsByTopicId(topicId);
   },
   async createSubtopic(data) {
     try {

@@ -119,12 +119,52 @@ const syllabusContentController = {
     }
   },
 
+  updateBookByKey: async (req, res) => {
+    try {
+      const bookRaw = await SyllabusContentService.updateBookByKey(
+        {
+          academic_year_id: parseInt(req.params.academicYearId),
+          subject_name: String(req.params.subjectName),
+          version_no: parseInt(req.params.versionNo)
+        },
+        req.body
+      );
+      const book = {
+        curriculum_book_id: bookRaw.curriculum_book_id,
+        book_name: bookRaw.book_name,
+        academic_year_id: bookRaw.academic_year_id,
+        subject_name: bookRaw.subject_name,
+        version_no: bookRaw.version_no,
+        is_active: bookRaw.is_active,
+        created_at: bookRaw.created_at
+      };
+      return successResponse(res, 'Book updated successfully', { book });
+    } catch (error) {
+      logger.error('Error in updateBookByKey controller:', error);
+      return errorResponse(res, error.message || 'Failed to update book', statusFromError(error));
+    }
+  },
+
   deleteBook: async (req, res) => {
     try {
       await SyllabusContentService.deleteBook(parseInt(req.params.curriculumBookId));
       return successResponse(res, 'Book deleted successfully');
     } catch (error) {
       logger.error('Error in deleteBook controller:', error);
+      return errorResponse(res, error.message || 'Failed to delete book', statusFromError(error));
+    }
+  },
+
+  deleteBookByKey: async (req, res) => {
+    try {
+      await SyllabusContentService.deleteBookByKey({
+        academic_year_id: parseInt(req.params.academicYearId),
+        subject_name: String(req.params.subjectName),
+        version_no: parseInt(req.params.versionNo)
+      });
+      return successResponse(res, 'Book deleted successfully');
+    } catch (error) {
+      logger.error('Error in deleteBookByKey controller:', error);
       return errorResponse(res, error.message || 'Failed to delete book', statusFromError(error));
     }
   },
@@ -184,8 +224,7 @@ const syllabusContentController = {
 
   getTopics: async (req, res) => {
     try {
-      const filters = { chapter_id: req.query.chapter_id ? parseInt(req.query.chapter_id) : undefined };
-      const topics = await SyllabusContentService.listTopics(filters);
+      const topics = await SyllabusContentService.listTopicsByChapterId(parseInt(req.params.chapterId));
       return successResponse(res, 'Topics fetched successfully', { topics });
     } catch (error) {
       logger.error('Error in getTopics controller:', error);
@@ -235,8 +274,7 @@ const syllabusContentController = {
 
   getSubtopics: async (req, res) => {
     try {
-      const filters = { topic_id: req.query.topic_id ? parseInt(req.query.topic_id) : undefined };
-      const subtopics = await SyllabusContentService.listSubtopics(filters);
+      const subtopics = await SyllabusContentService.listSubtopicsByTopicId(parseInt(req.params.topicId));
       return successResponse(res, 'Subtopics fetched successfully', { subtopics });
     } catch (error) {
       logger.error('Error in getSubtopics controller:', error);

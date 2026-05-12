@@ -227,6 +227,10 @@ const SyllabusContentModel = {
     return result.rows[0];
   },
 
+  async listTopicsByChapterId(chapterId) {
+    return await this.listTopics({ chapter_id: chapterId });
+  },
+
   async listTopics(filters = {}) {
     const { clause, values } = buildWhere(filters, ['chapter_id']);
     const query = `
@@ -285,6 +289,10 @@ const SyllabusContentModel = {
     const query = `DELETE FROM syllabus_topics WHERE topic_id = $1 RETURNING *`;
     const result = await pool.query(query, [topicId]);
     return result.rows[0];
+  },
+
+  async listSubtopicsByTopicId(topicId) {
+    return await this.listSubtopics({ topic_id: topicId });
   },
 
   async listSubtopics(filters = {}) {

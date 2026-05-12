@@ -49,7 +49,6 @@ const updateChapterBody = Joi.object({
 }).min(1).unknown(true);
 
 const createTopicBody = Joi.object({
-  chapter_id: Joi.number().integer().min(1).required(),
   topic_title: Joi.string().trim().min(1).max(255).required(),
   topic_description: Joi.string().allow(null, '').optional(),
   sequence_order: Joi.number().integer().min(0).optional(),
@@ -57,7 +56,6 @@ const createTopicBody = Joi.object({
 }).unknown(true);
 
 const updateTopicBody = Joi.object({
-  chapter_id: Joi.number().integer().min(1).optional(),
   topic_title: Joi.string().trim().min(1).max(255).optional(),
   topic_description: Joi.string().allow(null, '').optional(),
   sequence_order: Joi.number().integer().min(0).optional(),
@@ -65,7 +63,6 @@ const updateTopicBody = Joi.object({
 }).min(1).unknown(true);
 
 const createSubtopicBody = Joi.object({
-  topic_id: Joi.number().integer().min(1).required(),
   subtopic_title: Joi.string().trim().min(1).max(255).required(),
   subtopic_description: Joi.string().allow(null, '').optional(),
   sequence_order: Joi.number().integer().min(0).optional(),
@@ -73,7 +70,6 @@ const createSubtopicBody = Joi.object({
 }).unknown(true);
 
 const updateSubtopicBody = Joi.object({
-  topic_id: Joi.number().integer().min(1).optional(),
   subtopic_title: Joi.string().trim().min(1).max(255).optional(),
   subtopic_description: Joi.string().allow(null, '').optional(),
   sequence_order: Joi.number().integer().min(0).optional(),
@@ -125,7 +121,19 @@ module.exports = {
   getChapters: {
     user: userContext,
     query: Joi.object({
-      curriculum_book_id: Joi.number().integer().min(1).optional()
+      curriculum_book_id: Joi.number().integer().min(1).optional(),
+      curriculumBookId: Joi.number().integer().min(1).optional()
+    }).custom((obj, helpers) => {
+      if (obj.curriculum_book_id !== undefined && obj.curriculumBookId !== undefined) {
+        return helpers.error('any.invalid');
+      }
+      return obj;
+    }, 'chapters filter validation')
+  },
+  getChaptersByBookId: {
+    user: userContext,
+    params: Joi.object({
+      curriculumBookId: ids.curriculumBookId
     })
   },
   createChapter: {
@@ -154,8 +162,8 @@ module.exports = {
 
   getTopics: {
     user: userContext,
-    query: Joi.object({
-      chapter_id: Joi.number().integer().min(1).optional()
+    params: Joi.object({
+      chapterId: ids.chapterId
     })
   },
   createTopic: {
@@ -184,8 +192,8 @@ module.exports = {
 
   getSubtopics: {
     user: userContext,
-    query: Joi.object({
-      topic_id: Joi.number().integer().min(1).optional()
+    params: Joi.object({
+      topicId: ids.topicId
     })
   },
   createSubtopic: {
