@@ -240,6 +240,42 @@ const PERMISSIONS = {
   EXAM_RESULT_BY_EXAM_READ: 'exam_result_by_exam_read',
   EXAM_RESULT_BY_STUDENT_READ: 'exam_result_by_student_read',
 
+  SYLLABUS_BOOK_LIST_READ: 'syllabus_book_list_read',
+  SYLLABUS_BOOK_CREATE: 'syllabus_book_create',
+  SYLLABUS_BOOK_ITEM_READ: 'syllabus_book_item_read',
+  SYLLABUS_BOOK_EDIT: 'syllabus_book_edit',
+  SYLLABUS_BOOK_DELETE: 'syllabus_book_delete',
+
+  SYLLABUS_CHAPTER_LIST_READ: 'syllabus_chapter_list_read',
+  SYLLABUS_CHAPTER_CREATE: 'syllabus_chapter_create',
+  SYLLABUS_CHAPTER_ITEM_READ: 'syllabus_chapter_item_read',
+  SYLLABUS_CHAPTER_EDIT: 'syllabus_chapter_edit',
+  SYLLABUS_CHAPTER_DELETE: 'syllabus_chapter_delete',
+
+  SYLLABUS_TOPIC_LIST_READ: 'syllabus_topic_list_read',
+  SYLLABUS_TOPIC_CREATE: 'syllabus_topic_create',
+  SYLLABUS_TOPIC_ITEM_READ: 'syllabus_topic_item_read',
+  SYLLABUS_TOPIC_EDIT: 'syllabus_topic_edit',
+  SYLLABUS_TOPIC_DELETE: 'syllabus_topic_delete',
+
+  SYLLABUS_SUBTOPIC_LIST_READ: 'syllabus_subtopic_list_read',
+  SYLLABUS_SUBTOPIC_CREATE: 'syllabus_subtopic_create',
+  SYLLABUS_SUBTOPIC_ITEM_READ: 'syllabus_subtopic_item_read',
+  SYLLABUS_SUBTOPIC_EDIT: 'syllabus_subtopic_edit',
+  SYLLABUS_SUBTOPIC_DELETE: 'syllabus_subtopic_delete',
+
+  SYLLABUS_PLAN_LIST_READ: 'syllabus_plan_list_read',
+  SYLLABUS_PLAN_CREATE: 'syllabus_plan_create',
+  SYLLABUS_PLAN_ITEM_READ: 'syllabus_plan_item_read',
+  SYLLABUS_PLAN_EDIT: 'syllabus_plan_edit',
+  SYLLABUS_PLAN_DELETE: 'syllabus_plan_delete',
+
+  SYLLABUS_PROGRESS_LIST_READ: 'syllabus_progress_list_read',
+  SYLLABUS_PROGRESS_CREATE: 'syllabus_progress_create',
+  SYLLABUS_PROGRESS_ITEM_READ: 'syllabus_progress_item_read',
+  SYLLABUS_PROGRESS_EDIT: 'syllabus_progress_edit',
+  SYLLABUS_PROGRESS_DELETE: 'syllabus_progress_delete',
+
   // Events (per-route)
   EVENT_CREATE: 'event_create',
   EVENT_LIST_READ: 'event_list_read',

@@ -24,6 +24,8 @@ const feeRoutes = require('./fee.routes');
 const payrollRoutes = require('./payroll.routes');
 const examRoutes = require('./exam.routes');
 const examResultRoutes = require('./examResult.routes');
+const syllabusContentRoutes = require('./syllabusContent.routes');
+const syllabusTrackingRoutes = require('./syllabusTracking.routes');
 
 const router = express.Router();
 
@@ -83,6 +85,8 @@ router.use('/payroll', payrollRoutes);
 router.use('/fees', feeRoutes);
 router.use('/exams', examRoutes);
 router.use('/exam-results', examResultRoutes);
+router.use('/syllabus-content', syllabusContentRoutes);
+router.use('/syllabus-tracking', syllabusTrackingRoutes);
 
 // Special public endpoint for tenant registration (outside of /tenants)
 router.post('/register-tenant', require('../controllers/tenant.controller').registerTenant);
