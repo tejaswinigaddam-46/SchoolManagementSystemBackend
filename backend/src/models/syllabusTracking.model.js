@@ -72,6 +72,28 @@ const SyllabusTrackingModel = {
     return result.rows[0];
   },
 
+  async getTopicIdsBySubtopicIds(subtopicIds, client = pool) {
+    if (!Array.isArray(subtopicIds) || subtopicIds.length === 0) return [];
+    const query = `
+      SELECT DISTINCT topic_id
+      FROM syllabus_subtopics
+      WHERE subtopic_id = ANY($1::int[])
+    `;
+    const result = await client.query(query, [subtopicIds]);
+    return result.rows.map(r => r.topic_id);
+  },
+
+  async getChapterIdsByTopicIds(topicIds, client = pool) {
+    if (!Array.isArray(topicIds) || topicIds.length === 0) return [];
+    const query = `
+      SELECT DISTINCT chapter_id
+      FROM syllabus_topics
+      WHERE topic_id = ANY($1::int[])
+    `;
+    const result = await client.query(query, [topicIds]);
+    return result.rows.map(r => r.chapter_id);
+  },
+
   async listPlans(filters = {}) {
     const { clause, values } = buildWhere(filters, ['section_subject_id', 'chapter_id', 'topic_id', 'subtopic_id']);
     const query = `
@@ -117,7 +139,7 @@ const SyllabusTrackingModel = {
     return inserted;
   },
 
-  async createPlan(data) {
+  async createPlan(data, client = pool) {
     const query = `
       INSERT INTO section_syllabus_plan
         (section_subject_id, chapter_id, topic_id, subtopic_id, planned_hours, planned_start_date, planned_end_date, created_by)
@@ -136,16 +158,16 @@ const SyllabusTrackingModel = {
       data.planned_end_date ?? null,
       data.created_by ?? null
     ];
-    const result = await pool.query(query, values);
+    const result = await client.query(query, values);
     return result.rows[0];
   },
 
-  async getPlanById(planId) {
-    const result = await pool.query(`SELECT * FROM section_syllabus_plan WHERE plan_id = $1`, [planId]);
+  async getPlanById(planId, client = pool) {
+    const result = await client.query(`SELECT * FROM section_syllabus_plan WHERE plan_id = $1`, [planId]);
     return result.rows[0];
   },
 
-  async updatePlan(planId, data) {
+  async updatePlan(planId, data, client = pool) {
     const { setClause, values, idParamIndex } = buildUpdate(
       data,
       [
@@ -167,13 +189,61 @@ const SyllabusTrackingModel = {
       WHERE plan_id = $${idParamIndex}
       RETURNING *
     `;
-    const result = await pool.query(query, values);
+    const result = await client.query(query, values);
     return result.rows[0];
   },
 
-  async deletePlan(planId) {
-    const result = await pool.query(`DELETE FROM section_syllabus_plan WHERE plan_id = $1 RETURNING *`, [planId]);
+  async deletePlan(planId, client = pool) {
+    const result = await client.query(`DELETE FROM section_syllabus_plan WHERE plan_id = $1 RETURNING *`, [planId]);
     return result.rows[0];
+  },
+
+  async getTopicHoursAggregations(section_subject_id, topicIds, client = pool) {
+    if (!Array.isArray(topicIds) || topicIds.length === 0) return [];
+    const query = `
+      SELECT t.topic_id,
+             tp.planned_hours AS topic_planned_hours,
+             COALESCE(SUM(sp.planned_hours), 0) AS subtopics_planned_hours,
+             COUNT(sp.plan_id) AS subtopic_count
+      FROM syllabus_topics t
+      LEFT JOIN section_syllabus_plan tp
+        ON tp.section_subject_id = $1
+       AND tp.topic_id = t.topic_id
+       AND tp.subtopic_id IS NULL
+      LEFT JOIN syllabus_subtopics st ON st.topic_id = t.topic_id
+      LEFT JOIN section_syllabus_plan sp
+        ON sp.section_subject_id = $1
+       AND sp.subtopic_id = st.subtopic_id
+      WHERE t.topic_id = ANY($2::int[])
+      GROUP BY t.topic_id, tp.planned_hours
+    `;
+    const result = await client.query(query, [section_subject_id, topicIds]);
+    return result.rows;
+  },
+
+  async getChapterHoursAggregations(section_subject_id, chapterIds, client = pool) {
+    if (!Array.isArray(chapterIds) || chapterIds.length === 0) return [];
+    const query = `
+      SELECT c.chapter_id,
+             cp.planned_hours AS chapter_planned_hours,
+             COALESCE(SUM(tp.planned_hours), 0) AS topics_planned_hours,
+             COUNT(tp.plan_id) AS topic_count
+      FROM syllabus_chapters c
+      LEFT JOIN section_syllabus_plan cp
+        ON cp.section_subject_id = $1
+       AND cp.chapter_id = c.chapter_id
+       AND cp.topic_id IS NULL
+       AND cp.subtopic_id IS NULL
+      LEFT JOIN syllabus_topics t ON t.chapter_id = c.chapter_id
+      LEFT JOIN section_syllabus_plan tp
+        ON tp.section_subject_id = $1
+       AND tp.topic_id = t.topic_id
+       AND tp.subtopic_id IS NULL
+      WHERE c.chapter_id = ANY($2::int[])
+      GROUP BY c.chapter_id, cp.planned_hours
+    `;
+    const result = await client.query(query, [section_subject_id, chapterIds]);
+    return result.rows;
   },
 
   async listProgress(filters = {}) {

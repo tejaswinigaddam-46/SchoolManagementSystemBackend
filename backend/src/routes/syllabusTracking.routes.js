@@ -46,6 +46,14 @@ router.put(
   syllabusTrackingController.updatePlan
 );
 
+router.put(
+  '/plans',
+  authenticate,
+  requirePermission(PERMISSIONS.SYLLABUS_PLAN_EDIT),
+  validate(syllabusTrackingSchema.bulkUpdatePlans),
+  syllabusTrackingController.bulkUpdatePlans
+);
+
 router.delete(
   '/plans/:planId',
   authenticate,

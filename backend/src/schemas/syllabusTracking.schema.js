@@ -91,6 +91,29 @@ const updatePlanBody = Joi.object({
   created_by: Joi.number().integer().min(1).allow(null).optional()
 }).min(1).unknown(true);
 
+const updatePlanFieldsBody = Joi.object({
+  planned_hours: numberOrNull.optional(),
+  planned_start_date: dateOrNull.optional(),
+  planned_end_date: dateOrNull.optional()
+}).min(1).unknown(false);
+
+const bulkUpdatePlansBody = Joi.alternatives().try(
+  Joi.array().items(
+    Joi.object({
+      plan_id: ids.planId.required(),
+      fields_to_update: updatePlanFieldsBody.required()
+    }).unknown(true)
+  ).min(1),
+  Joi.object({
+    updates: Joi.array().items(
+      Joi.object({
+        plan_id: ids.planId.required(),
+        fields_to_update: updatePlanFieldsBody.required()
+      }).unknown(true)
+    ).min(1).required()
+  }).unknown(true)
+);
+
 const createProgressBody = Joi.object({
   section_subject_id: intId.required(),
   subtopic_id: intId.required(),
@@ -151,6 +174,10 @@ module.exports = {
       planId: ids.planId
     }),
     body: updatePlanBody
+  },
+  bulkUpdatePlans: {
+    user: userContext,
+    body: bulkUpdatePlansBody
   },
   deletePlan: {
     user: userContext,

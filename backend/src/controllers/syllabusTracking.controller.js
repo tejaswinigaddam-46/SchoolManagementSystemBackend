@@ -9,6 +9,7 @@ const statusFromError = (error) => {
   if (error.code === 'FK') return 400;
   if (error.code === 'CHECK') return 400;
   if (error.code === 'NO_FIELDS') return 400;
+  if (error.code === 'BUSINESS_RULE') return 400;
   return 500;
 };
 
@@ -80,6 +81,19 @@ const syllabusTrackingController = {
     } catch (error) {
       logger.error('Error in updatePlan controller:', error);
       return errorResponse(res, error.message || 'Failed to update plan', statusFromError(error));
+    }
+  },
+
+  bulkUpdatePlans: async (req, res) => {
+    try {
+      const updates = Array.isArray(req.body) ? req.body : (req.body?.updates || []);
+      console.log('PUT /api/syllabus-tracking/plans bulk update input:', req.body);
+      const result = await SyllabusTrackingService.bulkUpdatePlanFields(updates);
+      console.log('PUT /api/syllabus-tracking/plans bulk update result:', result);
+      return successResponse(res, 'Plans updated successfully', { result });
+    } catch (error) {
+      logger.error('Error in bulkUpdatePlans controller:', error);
+      return errorResponse(res, error.message || 'Failed to update plans', statusFromError(error));
     }
   },
 
