@@ -64,7 +64,7 @@ describe('Attendance Schema', () => {
     test('accepts minimal valid body', () => {
       const { error } = schema.saveAttendance.body.validate({
         eventId: 'evt-1',
-        eventInstanceId: 'test-instance-id',
+        eventInstanceId: '550e8400-e29b-41d4-a716-446655440001',
         attendanceData: [{ studentId: 1, status: 'Present' }]
       });
       expect(error).toBeUndefined();
