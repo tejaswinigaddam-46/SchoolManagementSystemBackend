@@ -278,6 +278,14 @@ CREATE TABLE public.section_syllabus_plan (
     )
 );
 
+CREATE UNIQUE INDEX uq_section_syllabus_plan
+ON public.section_syllabus_plan (
+    section_subject_id,
+    COALESCE(chapter_id, -1),
+    COALESCE(topic_id, -1),
+    COALESCE(subtopic_id, -1)
+);
+
 CREATE TYPE syllabus_status AS ENUM (
     'completed', 
     'pending'
