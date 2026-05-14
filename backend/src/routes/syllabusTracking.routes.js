@@ -78,6 +78,14 @@ router.post(
   syllabusTrackingController.createProgress
 );
 
+router.put(
+  '/progress',
+  authenticate,
+  requirePermission(PERMISSIONS.SYLLABUS_PROGRESS_EDIT),
+  validate(syllabusTrackingSchema.bulkUpdateProgress),
+  syllabusTrackingController.bulkUpdateProgress
+);
+
 router.get(
   '/progress/:progressId',
   authenticate,

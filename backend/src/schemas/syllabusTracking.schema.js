@@ -114,32 +114,42 @@ const bulkUpdatePlansBody = Joi.alternatives().try(
   }).unknown(true)
 );
 
-const createProgressBody = Joi.object({
-  section_subject_id: intId.required(),
-  subtopic_id: intId.required(),
+const createProgressItem = Joi.object({
+  plan_id: intId.required(),
   teacher_user_id: Joi.number().integer().min(1).allow(null).optional(),
-  status: Joi.string().valid('completed', 'pending').optional(),
   completion_percentage: Joi.number().min(0).max(100).optional(),
-  planned_hours: numberOrNull.optional(),
-  actual_hours: Joi.number().min(0).optional(),
+  actual_hours: Joi.number().min(0).allow(null).optional(),
   started_at: dateOrNull.optional(),
   completed_at: dateOrNull.optional(),
   notes: Joi.string().allow(null, '').optional()
 }).unknown(true);
 
-const updateProgressBody = Joi.object({
-  section_subject_id: intId.optional(),
-  subtopic_id: intId.optional(),
+const createProgressSingleBody = createProgressItem;
+
+const createProgressBulkBody = Joi.object({
+  academic_year_id: intId.required(),
+  section_id: intId.required(),
+  subject_name: Joi.string().trim().min(1).max(255).required(),
   teacher_user_id: Joi.number().integer().min(1).allow(null).optional(),
-  status: Joi.string().valid('completed', 'pending').optional(),
-  completion_percentage: Joi.number().min(0).max(100).optional(),
-  planned_hours: numberOrNull.optional(),
-  actual_hours: Joi.number().min(0).optional(),
+  progress: Joi.array().items(createProgressItem).min(1).required()
+}).unknown(true);
+
+const updateProgressBody = Joi.object({
+  actual_hours: Joi.number().min(0).allow(null).optional(),
   started_at: dateOrNull.optional(),
   completed_at: dateOrNull.optional(),
-  notes: Joi.string().allow(null, '').optional(),
-  updated_at: dateOrNull.optional()
-}).min(1).unknown(true);
+  notes: Joi.string().allow(null, '').optional()
+}).min(1).unknown(false);
+
+const bulkUpdateProgressItem = Joi.object({
+  plan_id: intId.required(),
+  fields_to_update: updateProgressBody.required()
+}).unknown(false);
+
+const bulkUpdateProgressBody = Joi.alternatives().try(
+  Joi.array().items(bulkUpdateProgressItem).min(1),
+  Joi.object({ updates: Joi.array().items(bulkUpdateProgressItem).min(1).required() }).unknown(true)
+);
 
 module.exports = {
   getPlans: {
@@ -190,14 +200,32 @@ module.exports = {
     user: userContext,
     query: Joi.object({
       section_subject_id: intId.optional(),
+      chapter_id: intId.optional(),
+      topic_id: intId.optional(),
       subtopic_id: intId.optional(),
       teacher_user_id: intId.optional(),
-      status: Joi.string().valid('completed', 'pending').optional()
-    })
+      status: Joi.string().valid('completed', 'pending').optional(),
+      academic_year_id: intId.optional(),
+      section_id: intId.optional(),
+      subject_name: Joi.string().trim().min(1).max(255).optional()
+    }).custom((obj, helpers) => {
+      const hasSectionSubject = !!obj.section_subject_id;
+      const hasContext = !!obj.academic_year_id && !!obj.section_id && !!obj.subject_name;
+      if (!hasSectionSubject && !hasContext) return helpers.error('any.required');
+      return obj;
+    }, 'progress list context')
   },
   createProgress: {
     user: userContext,
-    body: createProgressBody
+    body: Joi.alternatives().try(
+      createProgressSingleBody,
+      createProgressBulkBody,
+      Joi.array().items(createProgressItem).min(1)
+    )
+  },
+  bulkUpdateProgress: {
+    user: userContext,
+    body: bulkUpdateProgressBody
   },
   getProgressById: {
     user: userContext,

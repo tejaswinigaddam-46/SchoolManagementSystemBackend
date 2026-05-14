@@ -94,6 +94,199 @@ const SyllabusTrackingModel = {
     return result.rows.map(r => r.chapter_id);
   },
 
+  async getTopicIdBySubtopicId(subtopic_id, client = pool) {
+    const query = `SELECT topic_id FROM syllabus_subtopics WHERE subtopic_id = $1`;
+    const result = await client.query(query, [subtopic_id]);
+    return result.rows[0];
+  },
+
+  async getChapterIdByTopicId(topic_id, client = pool) {
+    const query = `SELECT chapter_id FROM syllabus_topics WHERE topic_id = $1`;
+    const result = await client.query(query, [topic_id]);
+    return result.rows[0];
+  },
+
+  async countTopicsByChapterId(chapter_id, client = pool) {
+    const query = `SELECT COUNT(1)::int AS cnt FROM syllabus_topics WHERE chapter_id = $1`;
+    const result = await client.query(query, [chapter_id]);
+    return result.rows[0]?.cnt ?? 0;
+  },
+
+  async countSubtopicsByTopicId(topic_id, client = pool) {
+    const query = `SELECT COUNT(1)::int AS cnt FROM syllabus_subtopics WHERE topic_id = $1`;
+    const result = await client.query(query, [topic_id]);
+    return result.rows[0]?.cnt ?? 0;
+  },
+
+  async getPlanHoursForChapter(section_subject_id, chapter_id, client = pool) {
+    const query = `
+      SELECT planned_hours
+      FROM section_syllabus_plan
+      WHERE section_subject_id = $1
+        AND chapter_id = $2
+        AND topic_id IS NULL
+        AND subtopic_id IS NULL
+      LIMIT 1
+    `;
+    const result = await client.query(query, [section_subject_id, chapter_id]);
+    return result.rows[0];
+  },
+
+  async getPlanHoursForTopic(section_subject_id, topic_id, client = pool) {
+    const query = `
+      SELECT planned_hours
+      FROM section_syllabus_plan
+      WHERE section_subject_id = $1
+        AND topic_id = $2
+        AND subtopic_id IS NULL
+      LIMIT 1
+    `;
+    const result = await client.query(query, [section_subject_id, topic_id]);
+    return result.rows[0];
+  },
+
+  async getPlanHoursForSubtopic(section_subject_id, subtopic_id, client = pool) {
+    const query = `
+      SELECT planned_hours
+      FROM section_syllabus_plan
+      WHERE section_subject_id = $1
+        AND subtopic_id = $2
+      LIMIT 1
+    `;
+    const result = await client.query(query, [section_subject_id, subtopic_id]);
+    return result.rows[0];
+  },
+
+  async sumPlannedHoursForChapterTopics(section_subject_id, chapter_id, client = pool) {
+    const query = `
+      SELECT COALESCE(SUM(p.planned_hours), 0) AS sum_hours
+      FROM syllabus_topics t
+      JOIN section_syllabus_plan p
+        ON p.section_subject_id = $1
+       AND p.topic_id = t.topic_id
+       AND p.subtopic_id IS NULL
+      WHERE t.chapter_id = $2
+    `;
+    const result = await client.query(query, [section_subject_id, chapter_id]);
+    return Number(result.rows[0]?.sum_hours ?? 0);
+  },
+
+  async sumPlannedHoursForTopicSubtopics(section_subject_id, topic_id, client = pool) {
+    const query = `
+      SELECT COALESCE(SUM(p.planned_hours), 0) AS sum_hours
+      FROM syllabus_subtopics st
+      JOIN section_syllabus_plan p
+        ON p.section_subject_id = $1
+       AND p.subtopic_id = st.subtopic_id
+      WHERE st.topic_id = $2
+    `;
+    const result = await client.query(query, [section_subject_id, topic_id]);
+    return Number(result.rows[0]?.sum_hours ?? 0);
+  },
+
+  async getChapterDefaultHours(chapter_id, client = pool) {
+    const query = `SELECT default_hours FROM syllabus_chapters WHERE chapter_id = $1`;
+    const result = await client.query(query, [chapter_id]);
+    return result.rows[0];
+  },
+
+  async getTopicDefaultHours(topic_id, client = pool) {
+    const query = `SELECT default_hours FROM syllabus_topics WHERE topic_id = $1`;
+    const result = await client.query(query, [topic_id]);
+    return result.rows[0];
+  },
+
+  async getSubtopicDefaultHours(subtopic_id, client = pool) {
+    const query = `SELECT default_hours FROM syllabus_subtopics WHERE subtopic_id = $1`;
+    const result = await client.query(query, [subtopic_id]);
+    return result.rows[0];
+  },
+
+  async sumActualHoursForChapterFromTopics(section_subject_id, chapter_id, client = pool) {
+    const query = `
+      SELECT COALESCE(SUM(COALESCE(sp.actual_hours, 0)), 0) AS sum_hours
+      FROM syllabus_topics t
+      JOIN section_syllabus_plan p
+        ON p.section_subject_id = $1
+       AND p.topic_id = t.topic_id
+       AND p.subtopic_id IS NULL
+      LEFT JOIN syllabus_progress sp ON sp.plan_id = p.plan_id
+      WHERE t.chapter_id = $2
+    `;
+    const result = await client.query(query, [section_subject_id, chapter_id]);
+    return Number(result.rows[0]?.sum_hours ?? 0);
+  },
+
+  async sumActualHoursForTopicFromSubtopics(section_subject_id, topic_id, client = pool) {
+    const query = `
+      SELECT COALESCE(SUM(COALESCE(sp.actual_hours, 0)), 0) AS sum_hours
+      FROM syllabus_subtopics st
+      JOIN section_syllabus_plan p
+        ON p.section_subject_id = $1
+       AND p.subtopic_id = st.subtopic_id
+      LEFT JOIN syllabus_progress sp ON sp.plan_id = p.plan_id
+      WHERE st.topic_id = $2
+    `;
+    const result = await client.query(query, [section_subject_id, topic_id]);
+    return Number(result.rows[0]?.sum_hours ?? 0);
+  },
+
+  async sumPlannedHoursForChapterSubtopics(section_subject_id, chapter_id, client = pool) {
+    const query = `
+      SELECT COALESCE(SUM(p.planned_hours), 0) AS sum_hours
+      FROM syllabus_topics t
+      JOIN syllabus_subtopics st ON st.topic_id = t.topic_id
+      JOIN section_syllabus_plan p
+        ON p.section_subject_id = $1
+       AND p.subtopic_id = st.subtopic_id
+      WHERE t.chapter_id = $2
+    `;
+    const result = await client.query(query, [section_subject_id, chapter_id]);
+    return Number(result.rows[0]?.sum_hours ?? 0);
+  },
+
+  async sumActualHoursForChapterFromSubtopics(section_subject_id, chapter_id, client = pool) {
+    const query = `
+      SELECT COALESCE(SUM(COALESCE(sp.actual_hours, 0)), 0) AS sum_hours
+      FROM syllabus_topics t
+      JOIN syllabus_subtopics st ON st.topic_id = t.topic_id
+      JOIN section_syllabus_plan p
+        ON p.section_subject_id = $1
+       AND p.subtopic_id = st.subtopic_id
+      LEFT JOIN syllabus_progress sp ON sp.plan_id = p.plan_id
+      WHERE t.chapter_id = $2
+    `;
+    const result = await client.query(query, [section_subject_id, chapter_id]);
+    return Number(result.rows[0]?.sum_hours ?? 0);
+  },
+
+  async getChapterPlanId(section_subject_id, chapter_id, client = pool) {
+    const query = `
+      SELECT plan_id
+      FROM section_syllabus_plan
+      WHERE section_subject_id = $1
+        AND chapter_id = $2
+        AND topic_id IS NULL
+        AND subtopic_id IS NULL
+      LIMIT 1
+    `;
+    const result = await client.query(query, [section_subject_id, chapter_id]);
+    return result.rows[0];
+  },
+
+  async getTopicPlanId(section_subject_id, topic_id, client = pool) {
+    const query = `
+      SELECT plan_id
+      FROM section_syllabus_plan
+      WHERE section_subject_id = $1
+        AND topic_id = $2
+        AND subtopic_id IS NULL
+      LIMIT 1
+    `;
+    const result = await client.query(query, [section_subject_id, topic_id]);
+    return result.rows[0];
+  },
+
   async listPlans(filters = {}) {
     const { clause, values } = buildWhere(filters, ['section_subject_id', 'chapter_id', 'topic_id', 'subtopic_id']);
     const query = `
@@ -246,61 +439,489 @@ const SyllabusTrackingModel = {
     return result.rows;
   },
 
-  async listProgress(filters = {}) {
-    const { clause, values } = buildWhere(filters, ['section_subject_id', 'subtopic_id', 'teacher_user_id', 'status']);
+  async listPlanProgressBySectionSubjectId(section_subject_id, filters = {}, client = pool) {
+    const where = ['p.section_subject_id = $1'];
+    const values = [section_subject_id];
+    let idx = 2;
+
+    if (filters.chapter_id !== undefined) {
+      where.push(`p.chapter_id = $${idx}`);
+      values.push(filters.chapter_id);
+      idx += 1;
+    }
+    if (filters.topic_id !== undefined) {
+      where.push(`p.topic_id = $${idx}`);
+      values.push(filters.topic_id);
+      idx += 1;
+    }
+    if (filters.subtopic_id !== undefined) {
+      where.push(`p.subtopic_id = $${idx}`);
+      values.push(filters.subtopic_id);
+      idx += 1;
+    }
+    if (filters.teacher_user_id !== undefined) {
+      where.push(`sp.teacher_user_id = $${idx}`);
+      values.push(filters.teacher_user_id);
+      idx += 1;
+    }
+    if (filters.status !== undefined) {
+      where.push(`sp.status = $${idx}`);
+      values.push(filters.status);
+      idx += 1;
+    }
+
     const query = `
-      SELECT *
-      FROM syllabus_progress
-      ${clause}
-      ORDER BY updated_at DESC, progress_id DESC
+      SELECT
+        p.plan_id,
+        p.section_subject_id,
+        p.chapter_id,
+        p.topic_id,
+        p.subtopic_id,
+        p.planned_hours,
+        p.planned_start_date,
+        p.planned_end_date,
+        sp.progress_id,
+        sp.teacher_user_id,
+        sp.status,
+        sp.completion_percentage,
+        sp.actual_hours,
+        sp.started_at,
+        sp.completed_at,
+        sp.notes,
+        sp.updated_at
+      FROM section_syllabus_plan p
+      LEFT JOIN syllabus_progress sp ON sp.plan_id = p.plan_id
+      WHERE ${where.join(' AND ')}
+      ORDER BY p.planned_start_date NULLS LAST, p.planned_end_date NULLS LAST, p.plan_id DESC
     `;
-    const result = await pool.query(query, values);
+    const result = await client.query(query, values);
     return result.rows;
   },
 
-  async createProgress(data) {
+  async getPlansByIds(planIds, client = pool) {
+    if (!Array.isArray(planIds) || planIds.length === 0) return [];
+    const query = `
+      SELECT plan_id, section_subject_id, chapter_id, topic_id, subtopic_id, planned_hours, planned_start_date, planned_end_date
+      FROM section_syllabus_plan
+      WHERE plan_id = ANY($1::int[])
+    `;
+    const result = await client.query(query, [planIds]);
+    return result.rows;
+  },
+
+  async getParentPlanIdsForPlanIds(planIds, client = pool) {
+    if (!Array.isArray(planIds) || planIds.length === 0) return [];
+    const query = `
+      WITH selected AS (
+        SELECT plan_id, section_subject_id, chapter_id, topic_id, subtopic_id
+        FROM section_syllabus_plan
+        WHERE plan_id = ANY($1::int[])
+      ),
+      subtopic_parents AS (
+        SELECT
+          s.plan_id AS child_plan_id,
+          tp.plan_id AS topic_plan_id,
+          cp.plan_id AS chapter_plan_id
+        FROM selected s
+        JOIN syllabus_subtopics st ON st.subtopic_id = s.subtopic_id
+        JOIN syllabus_topics t ON t.topic_id = st.topic_id
+        LEFT JOIN section_syllabus_plan tp
+          ON tp.section_subject_id = s.section_subject_id
+         AND tp.topic_id = t.topic_id
+         AND tp.subtopic_id IS NULL
+        LEFT JOIN section_syllabus_plan cp
+          ON cp.section_subject_id = s.section_subject_id
+         AND cp.chapter_id = t.chapter_id
+         AND cp.topic_id IS NULL
+         AND cp.subtopic_id IS NULL
+        WHERE s.subtopic_id IS NOT NULL
+      ),
+      topic_parents AS (
+        SELECT
+          s.plan_id AS child_plan_id,
+          cp.plan_id AS chapter_plan_id
+        FROM selected s
+        JOIN syllabus_topics t ON t.topic_id = s.topic_id
+        LEFT JOIN section_syllabus_plan cp
+          ON cp.section_subject_id = s.section_subject_id
+         AND cp.chapter_id = t.chapter_id
+         AND cp.topic_id IS NULL
+         AND cp.subtopic_id IS NULL
+        WHERE s.topic_id IS NOT NULL
+          AND s.subtopic_id IS NULL
+      )
+      SELECT DISTINCT plan_id
+      FROM (
+        SELECT topic_plan_id AS plan_id FROM subtopic_parents WHERE topic_plan_id IS NOT NULL
+        UNION ALL
+        SELECT chapter_plan_id AS plan_id FROM subtopic_parents WHERE chapter_plan_id IS NOT NULL
+        UNION ALL
+        SELECT chapter_plan_id AS plan_id FROM topic_parents WHERE chapter_plan_id IS NOT NULL
+      ) x
+    `;
+    const result = await client.query(query, [planIds]);
+    return result.rows.map(r => r.plan_id);
+  },
+
+  async getParentPlanLinksForPlanIds(planIds, client = pool) {
+    if (!Array.isArray(planIds) || planIds.length === 0) return [];
+    const query = `
+      WITH selected AS (
+        SELECT plan_id, section_subject_id, chapter_id, topic_id, subtopic_id
+        FROM section_syllabus_plan
+        WHERE plan_id = ANY($1::int[])
+      ),
+      subtopic_links AS (
+        SELECT
+          s.plan_id AS child_plan_id,
+          tp.plan_id AS parent_plan_id
+        FROM selected s
+        JOIN syllabus_subtopics st ON st.subtopic_id = s.subtopic_id
+        JOIN syllabus_topics t ON t.topic_id = st.topic_id
+        JOIN section_syllabus_plan tp
+          ON tp.section_subject_id = s.section_subject_id
+         AND tp.topic_id = t.topic_id
+         AND tp.subtopic_id IS NULL
+        WHERE s.subtopic_id IS NOT NULL
+        UNION ALL
+        SELECT
+          s.plan_id AS child_plan_id,
+          cp.plan_id AS parent_plan_id
+        FROM selected s
+        JOIN syllabus_subtopics st ON st.subtopic_id = s.subtopic_id
+        JOIN syllabus_topics t ON t.topic_id = st.topic_id
+        JOIN section_syllabus_plan cp
+          ON cp.section_subject_id = s.section_subject_id
+         AND cp.chapter_id = t.chapter_id
+         AND cp.topic_id IS NULL
+         AND cp.subtopic_id IS NULL
+        WHERE s.subtopic_id IS NOT NULL
+      ),
+      topic_links AS (
+        SELECT
+          s.plan_id AS child_plan_id,
+          cp.plan_id AS parent_plan_id
+        FROM selected s
+        JOIN syllabus_topics t ON t.topic_id = s.topic_id
+        JOIN section_syllabus_plan cp
+          ON cp.section_subject_id = s.section_subject_id
+         AND cp.chapter_id = t.chapter_id
+         AND cp.topic_id IS NULL
+         AND cp.subtopic_id IS NULL
+        WHERE s.topic_id IS NOT NULL
+          AND s.subtopic_id IS NULL
+      )
+      SELECT DISTINCT child_plan_id, parent_plan_id
+      FROM (
+        SELECT * FROM subtopic_links
+        UNION ALL
+        SELECT * FROM topic_links
+      ) x
+    `;
+    const result = await client.query(query, [planIds]);
+    return result.rows;
+  },
+
+  async getProgressByPlanId(plan_id, client = pool) {
+    const query = `SELECT * FROM syllabus_progress WHERE plan_id = $1 LIMIT 1`;
+    const result = await client.query(query, [plan_id]);
+    return result.rows[0];
+  },
+
+  async getProgressByPlanIds(planIds, client = pool) {
+    if (!Array.isArray(planIds) || planIds.length === 0) return [];
+    const query = `
+      SELECT *
+      FROM syllabus_progress
+      WHERE plan_id = ANY($1::int[])
+    `;
+    const result = await client.query(query, [planIds]);
+    return result.rows;
+  },
+
+  async upsertProgressUserFieldsByPlanIds(items, client = pool) {
+    if (!Array.isArray(items) || items.length === 0) return { touched: 0 };
+
+    const values = [];
+    const rowsSql = [];
+    let idx = 1;
+
+    for (const it of items) {
+      rowsSql.push(`($${idx++}::int, $${idx++}::numeric, $${idx++}::bool, $${idx++}::timestamptz, $${idx++}::bool, $${idx++}::timestamptz, $${idx++}::bool, $${idx++}::text, $${idx++}::bool, $${idx++}::bigint)`);
+      values.push(
+        it.plan_id,
+        it.actual_hours ?? null,
+        !!it.has_actual_hours,
+        it.started_at ?? null,
+        !!it.has_started_at,
+        it.completed_at ?? null,
+        !!it.has_completed_at,
+        it.notes ?? null,
+        !!it.has_notes,
+        it.teacher_user_id ?? null
+      );
+    }
+
+    const query = `
+      WITH input(plan_id, actual_hours, has_actual_hours, started_at, has_started_at, completed_at, has_completed_at, notes, has_notes, teacher_user_id) AS (
+        VALUES ${rowsSql.join(', ')}
+      ),
+      updated AS (
+        UPDATE syllabus_progress sp
+        SET
+          actual_hours = CASE WHEN i.has_actual_hours THEN COALESCE(i.actual_hours, 0) ELSE sp.actual_hours END,
+          started_at = CASE WHEN i.has_started_at THEN i.started_at ELSE sp.started_at END,
+          completed_at = CASE WHEN i.has_completed_at THEN i.completed_at ELSE sp.completed_at END,
+          notes = CASE WHEN i.has_notes THEN i.notes ELSE sp.notes END,
+          updated_at = NOW()
+        FROM input i
+        WHERE sp.plan_id = i.plan_id
+        RETURNING sp.plan_id
+      )
+      INSERT INTO syllabus_progress (plan_id, teacher_user_id, status, completion_percentage, actual_hours, started_at, completed_at, notes, updated_at)
+      SELECT
+        i.plan_id,
+        i.teacher_user_id,
+        'pending'::syllabus_status,
+        0,
+        CASE WHEN i.has_actual_hours THEN COALESCE(i.actual_hours, 0) ELSE 0 END,
+        CASE WHEN i.has_started_at THEN i.started_at ELSE NULL END,
+        CASE WHEN i.has_completed_at THEN i.completed_at ELSE NULL END,
+        CASE WHEN i.has_notes THEN i.notes ELSE NULL END,
+        NOW()
+      FROM input i
+      LEFT JOIN syllabus_progress sp ON sp.plan_id = i.plan_id
+      WHERE sp.plan_id IS NULL
+      RETURNING plan_id
+    `;
+
+    const result = await client.query(query, values);
+    return { touched: result.rowCount };
+  },
+
+  async ensureProgressRowsExistForPlanIds(planIds, client = pool) {
+    if (!Array.isArray(planIds) || planIds.length === 0) return { inserted: 0 };
+    const query = `
+      INSERT INTO syllabus_progress (plan_id, teacher_user_id, status, completion_percentage, actual_hours, updated_at)
+      SELECT p.plan_id, NULL, 'pending'::syllabus_status, 0, 0, NOW()
+      FROM section_syllabus_plan p
+      LEFT JOIN syllabus_progress sp ON sp.plan_id = p.plan_id
+      WHERE p.plan_id = ANY($1::int[])
+        AND sp.plan_id IS NULL
+      RETURNING plan_id
+    `;
+    const result = await client.query(query, [planIds]);
+    return { inserted: result.rowCount };
+  },
+
+  async recomputeProgressForPlanIds(planIds, client = pool) {
+    if (!Array.isArray(planIds) || planIds.length === 0) return { updated: 0 };
+
+    const updateSubtopics = `
+      WITH target AS (
+        SELECT p.plan_id, p.planned_hours
+        FROM section_syllabus_plan p
+        WHERE p.plan_id = ANY($1::int[])
+          AND p.subtopic_id IS NOT NULL
+      ),
+      calc AS (
+        SELECT
+          t.plan_id,
+          COALESCE(t.planned_hours, 0) AS planned_total,
+          COALESCE(sp.actual_hours, 0) AS actual_total
+        FROM target t
+        JOIN syllabus_progress sp ON sp.plan_id = t.plan_id
+      )
+      UPDATE syllabus_progress sp
+      SET
+        completion_percentage = CASE
+          WHEN c.planned_total > 0 THEN LEAST(100, ROUND((c.actual_total / c.planned_total) * 100::numeric, 2))
+          ELSE 0
+        END,
+        status = CASE
+          WHEN c.planned_total > 0 AND (c.actual_total / c.planned_total) >= 1 THEN 'completed'::syllabus_status
+          ELSE 'pending'::syllabus_status
+        END,
+        updated_at = NOW()
+      FROM calc c
+      WHERE sp.plan_id = c.plan_id
+      RETURNING sp.plan_id
+    `;
+
+    const updateTopics = `
+      WITH target AS (
+        SELECT p.plan_id, p.section_subject_id, p.topic_id, p.planned_hours
+        FROM section_syllabus_plan p
+        WHERE p.plan_id = ANY($1::int[])
+          AND p.topic_id IS NOT NULL
+          AND p.subtopic_id IS NULL
+      ),
+      agg AS (
+        SELECT
+          t.plan_id,
+          EXISTS(
+            SELECT 1
+            FROM section_syllabus_plan c
+            WHERE c.section_subject_id = t.section_subject_id
+              AND c.subtopic_id IS NOT NULL
+              AND c.topic_id = t.topic_id
+          ) AS has_subs,
+          COALESCE((
+            SELECT SUM(c.planned_hours)
+            FROM section_syllabus_plan c
+            WHERE c.section_subject_id = t.section_subject_id
+              AND c.subtopic_id IS NOT NULL
+              AND c.topic_id = t.topic_id
+          ), 0) AS planned_subs,
+          COALESCE((
+            SELECT SUM(COALESCE(sp2.actual_hours, 0))
+            FROM section_syllabus_plan c
+            LEFT JOIN syllabus_progress sp2 ON sp2.plan_id = c.plan_id
+            WHERE c.section_subject_id = t.section_subject_id
+              AND c.subtopic_id IS NOT NULL
+              AND c.topic_id = t.topic_id
+          ), 0) AS actual_subs,
+          COALESCE(t.planned_hours, 0) AS planned_self
+        FROM target t
+      ),
+      calc AS (
+        SELECT
+          a.plan_id,
+          CASE WHEN a.has_subs THEN a.planned_subs ELSE a.planned_self END AS planned_total,
+          CASE WHEN a.has_subs THEN a.actual_subs ELSE COALESCE(sp.actual_hours, 0) END AS actual_total,
+          a.has_subs
+        FROM agg a
+        JOIN syllabus_progress sp ON sp.plan_id = a.plan_id
+      )
+      UPDATE syllabus_progress sp
+      SET
+        actual_hours = CASE WHEN c.has_subs THEN c.actual_total ELSE sp.actual_hours END,
+        completion_percentage = CASE
+          WHEN c.planned_total > 0 THEN LEAST(100, ROUND((c.actual_total / c.planned_total) * 100::numeric, 2))
+          ELSE 0
+        END,
+        status = CASE
+          WHEN c.planned_total > 0 AND (c.actual_total / c.planned_total) >= 1 THEN 'completed'::syllabus_status
+          ELSE 'pending'::syllabus_status
+        END,
+        updated_at = NOW()
+      FROM calc c
+      WHERE sp.plan_id = c.plan_id
+      RETURNING sp.plan_id
+    `;
+
+    const updateChapters = `
+      WITH target AS (
+        SELECT p.plan_id, p.section_subject_id, p.chapter_id, p.planned_hours
+        FROM section_syllabus_plan p
+        WHERE p.plan_id = ANY($1::int[])
+          AND p.chapter_id IS NOT NULL
+          AND p.topic_id IS NULL
+          AND p.subtopic_id IS NULL
+      ),
+      agg AS (
+        SELECT
+          t.plan_id,
+          EXISTS(
+            SELECT 1
+            FROM syllabus_topics st
+            JOIN section_syllabus_plan tp
+              ON tp.section_subject_id = t.section_subject_id
+             AND tp.topic_id = st.topic_id
+             AND tp.subtopic_id IS NULL
+            WHERE st.chapter_id = t.chapter_id
+          ) AS has_topics,
+          COALESCE((
+            SELECT SUM(tp.planned_hours)
+            FROM syllabus_topics st
+            JOIN section_syllabus_plan tp
+              ON tp.section_subject_id = t.section_subject_id
+             AND tp.topic_id = st.topic_id
+             AND tp.subtopic_id IS NULL
+            WHERE st.chapter_id = t.chapter_id
+          ), 0) AS planned_topics,
+          COALESCE((
+            SELECT SUM(COALESCE(sp2.actual_hours, 0))
+            FROM syllabus_topics st
+            JOIN section_syllabus_plan tp
+              ON tp.section_subject_id = t.section_subject_id
+             AND tp.topic_id = st.topic_id
+             AND tp.subtopic_id IS NULL
+            LEFT JOIN syllabus_progress sp2 ON sp2.plan_id = tp.plan_id
+            WHERE st.chapter_id = t.chapter_id
+          ), 0) AS actual_topics,
+          COALESCE(t.planned_hours, 0) AS planned_self
+        FROM target t
+      ),
+      calc AS (
+        SELECT
+          a.plan_id,
+          CASE WHEN a.has_topics THEN a.planned_topics ELSE a.planned_self END AS planned_total,
+          CASE WHEN a.has_topics THEN a.actual_topics ELSE COALESCE(sp.actual_hours, 0) END AS actual_total,
+          a.has_topics
+        FROM agg a
+        JOIN syllabus_progress sp ON sp.plan_id = a.plan_id
+      )
+      UPDATE syllabus_progress sp
+      SET
+        actual_hours = CASE WHEN c.has_topics THEN c.actual_total ELSE sp.actual_hours END,
+        completion_percentage = CASE
+          WHEN c.planned_total > 0 THEN LEAST(100, ROUND((c.actual_total / c.planned_total) * 100::numeric, 2))
+          ELSE 0
+        END,
+        status = CASE
+          WHEN c.planned_total > 0 AND (c.actual_total / c.planned_total) >= 1 THEN 'completed'::syllabus_status
+          ELSE 'pending'::syllabus_status
+        END,
+        updated_at = NOW()
+      FROM calc c
+      WHERE sp.plan_id = c.plan_id
+      RETURNING sp.plan_id
+    `;
+
+    const r1 = await client.query(updateSubtopics, [planIds]);
+    const r2 = await client.query(updateTopics, [planIds]);
+    const r3 = await client.query(updateChapters, [planIds]);
+    return { updated: (r1.rowCount || 0) + (r2.rowCount || 0) + (r3.rowCount || 0) };
+  },
+
+  async createProgress(data, client = pool) {
     const query = `
       INSERT INTO syllabus_progress
-        (section_subject_id, subtopic_id, teacher_user_id, status, completion_percentage, planned_hours, actual_hours, started_at, completed_at, notes)
+        (plan_id, teacher_user_id, status, completion_percentage, actual_hours, started_at, completed_at, notes, updated_at)
       VALUES
-        ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        ($1, $2, $3::syllabus_status, $4, $5, $6, $7, $8, NOW())
       RETURNING *
     `;
     const values = [
-      data.section_subject_id,
-      data.subtopic_id,
+      data.plan_id,
       data.teacher_user_id ?? null,
       data.status ?? 'pending',
       data.completion_percentage ?? 0,
-      data.planned_hours ?? null,
       data.actual_hours ?? 0,
       data.started_at ?? null,
       data.completed_at ?? null,
       data.notes ?? null
     ];
-    const result = await pool.query(query, values);
+    const result = await client.query(query, values);
     return result.rows[0];
   },
 
-  async getProgressById(progressId) {
-    const result = await pool.query(`SELECT * FROM syllabus_progress WHERE progress_id = $1`, [progressId]);
+  async getProgressById(progressId, client = pool) {
+    const result = await client.query(`SELECT * FROM syllabus_progress WHERE progress_id = $1`, [progressId]);
     return result.rows[0];
   },
 
-  async updateProgress(progressId, data) {
+  async updateProgress(progressId, data, client = pool) {
     const { setClause, values, idParamIndex } = buildUpdate(
       data,
       [
-        'section_subject_id',
-        'subtopic_id',
-        'teacher_user_id',
-        'status',
-        'completion_percentage',
-        'planned_hours',
         'actual_hours',
         'started_at',
         'completed_at',
         'notes',
+        'status',
+        'completion_percentage',
         'updated_at'
       ],
       'progress_id',
@@ -312,12 +933,12 @@ const SyllabusTrackingModel = {
       WHERE progress_id = $${idParamIndex}
       RETURNING *
     `;
-    const result = await pool.query(query, values);
+    const result = await client.query(query, values);
     return result.rows[0];
   },
 
-  async deleteProgress(progressId) {
-    const result = await pool.query(`DELETE FROM syllabus_progress WHERE progress_id = $1 RETURNING *`, [progressId]);
+  async deleteProgress(progressId, client = pool) {
+    const result = await client.query(`DELETE FROM syllabus_progress WHERE progress_id = $1 RETURNING *`, [progressId]);
     return result.rows[0];
   }
 };

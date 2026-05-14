@@ -111,9 +111,14 @@ const syllabusTrackingController = {
     try {
       const filters = {
         section_subject_id: req.query.section_subject_id ? parseInt(req.query.section_subject_id) : undefined,
+        chapter_id: req.query.chapter_id ? parseInt(req.query.chapter_id) : undefined,
+        topic_id: req.query.topic_id ? parseInt(req.query.topic_id) : undefined,
         subtopic_id: req.query.subtopic_id ? parseInt(req.query.subtopic_id) : undefined,
         teacher_user_id: req.query.teacher_user_id ? parseInt(req.query.teacher_user_id) : undefined,
-        status: req.query.status ? String(req.query.status) : undefined
+        status: req.query.status ? String(req.query.status) : undefined,
+        academic_year_id: req.query.academic_year_id ? parseInt(req.query.academic_year_id) : undefined,
+        section_id: req.query.section_id ? parseInt(req.query.section_id) : undefined,
+        subject_name: req.query.subject_name ? String(req.query.subject_name) : undefined
       };
       const progress = await SyllabusTrackingService.listProgress(filters);
       return successResponse(res, 'Progress fetched successfully', { progress });
@@ -125,15 +130,42 @@ const syllabusTrackingController = {
 
   createProgress: async (req, res) => {
     try {
-      const payload = { ...req.body };
-      if (payload.teacher_user_id === undefined || payload.teacher_user_id === null) {
-        payload.teacher_user_id = req.user?.user_id ?? req.user?.userId ?? null;
+      let payload = req.body;
+      const teacherUserId = req.user?.user_id ?? req.user?.userId ?? null;
+      if (Array.isArray(payload)) {
+        payload = payload.map(p => ({
+          ...p,
+          teacher_user_id: (p?.teacher_user_id === undefined || p?.teacher_user_id === null) ? teacherUserId : p.teacher_user_id
+        }));
+      } else {
+        payload = { ...(payload || {}) };
+        if (payload.teacher_user_id === undefined || payload.teacher_user_id === null) {
+          payload.teacher_user_id = teacherUserId;
+        }
       }
-      const progressRow = await SyllabusTrackingService.createProgress(payload);
-      return successResponse(res, 'Progress created successfully', { progress: progressRow }, 201);
+      const result = await SyllabusTrackingService.createProgress(payload);
+      return successResponse(res, 'Progress saved successfully', { result }, 201);
     } catch (error) {
       logger.error('Error in createProgress controller:', error);
       return errorResponse(res, error.message || 'Failed to create progress', statusFromError(error));
+    }
+  },
+
+  bulkUpdateProgress: async (req, res) => {
+    try {
+      const payload = req.body;
+      const context = {
+        teacher_user_id: req.user?.user_id ?? req.user?.userId ?? null,
+        academic_year_id: req.query.academic_year_id ? parseInt(req.query.academic_year_id) : undefined,
+        section_id: req.query.section_id ? parseInt(req.query.section_id) : undefined,
+        subject_name: req.query.subject_name ? String(req.query.subject_name) : undefined,
+        section_subject_id: req.query.section_subject_id ? parseInt(req.query.section_subject_id) : undefined
+      };
+      const result = await SyllabusTrackingService.bulkUpdateProgress(payload, context);
+      return successResponse(res, 'Progress updated successfully', { result });
+    } catch (error) {
+      logger.error('Error in bulkUpdateProgress controller:', error);
+      return errorResponse(res, error.message || 'Failed to update progress', statusFromError(error));
     }
   },
 
@@ -149,12 +181,8 @@ const syllabusTrackingController = {
 
   updateProgress: async (req, res) => {
     try {
-      const payload = { ...req.body };
-      if (!Object.prototype.hasOwnProperty.call(payload, 'updated_at')) {
-        payload.updated_at = new Date().toISOString();
-      }
-      const progressRow = await SyllabusTrackingService.updateProgress(parseInt(req.params.progressId), payload);
-      return successResponse(res, 'Progress updated successfully', { progress: progressRow });
+      const result = await SyllabusTrackingService.updateProgress(parseInt(req.params.progressId), req.body);
+      return successResponse(res, 'Progress updated successfully', { result });
     } catch (error) {
       logger.error('Error in updateProgress controller:', error);
       return errorResponse(res, error.message || 'Failed to update progress', statusFromError(error));
