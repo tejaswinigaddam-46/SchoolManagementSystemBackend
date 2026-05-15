@@ -26,6 +26,7 @@ const examRoutes = require('./exam.routes');
 const examResultRoutes = require('./examResult.routes');
 const syllabusContentRoutes = require('./syllabusContent.routes');
 const syllabusTrackingRoutes = require('./syllabusTracking.routes');
+const contactRoutes = require('./contact.routes');
 
 const router = express.Router();
 
@@ -54,8 +55,9 @@ router.get('/', (req, res) => {
       payroll: '/api/payroll',
       fees: '/api/fees',
       registerTenant: '/api/register-tenant',
-      health: '/health'
-    }
+      demoRequest: '/api/contact/demo',
+      health: '/health',
+    },
   });
 });
 
@@ -87,9 +89,13 @@ router.use('/exams', examRoutes);
 router.use('/exam-results', examResultRoutes);
 router.use('/syllabus-content', syllabusContentRoutes);
 router.use('/syllabus-tracking', syllabusTrackingRoutes);
+router.use('/contact', contactRoutes);
 
 // Special public endpoint for tenant registration (outside of /tenants)
-router.post('/register-tenant', require('../controllers/tenant.controller').registerTenant);
+router.post(
+  '/register-tenant',
+  require('../controllers/tenant.controller').registerTenant,
+);
 
 // Future routes can be added here
 // router.use('/staff', staffRoutes);
@@ -101,7 +107,7 @@ router.use((req, res) => {
   res.status(404).json({
     success: false,
     message: 'API route not found',
-    path: req.originalUrl
+    path: req.originalUrl,
   });
 });
 
