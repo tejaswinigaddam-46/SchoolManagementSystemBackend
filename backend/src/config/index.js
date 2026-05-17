@@ -28,7 +28,7 @@ const envVarsSchema = Joi.object({
   DB_PASSWORD: Joi.string().allow('').default('').description('Database password'),
   DB_SSL: Joi.boolean().default(false),
   JWT_SECRET: Joi.string().required().min(32).description('JWT secret key (min 32 chars)'),
-  CORS_ORIGINS: Joi.string().default('http://localhost:3000'),
+  CORS_ORIGINS: Joi.string().default('http://localhost:3000,http://10.0.2.2:3001'),
   UPLOAD_PATH: Joi.string().default('./uploads'),
 }).unknown().required();
 
