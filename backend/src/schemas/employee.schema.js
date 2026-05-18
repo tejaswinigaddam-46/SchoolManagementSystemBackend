@@ -47,15 +47,13 @@ const createEmployeeBody = Joi.object({
     employee_id: Joi.string().trim().min(3).max(20).pattern(/^[a-zA-Z0-9-]+$/).required(),
     designation: Joi.string().trim().valid(
       'Principal','Vice-Principal','Headmaster','Administrator',
-      'Senior Teacher','Teacher','Assistant Teacher','Substitute Teacher',
-      'Librarian','Lab Assistant','IT Support',
+      'Senior Teacher','Teacher','Assistant Teacher',
       'Accountant','Office Clerk','Receptionist',
-      'Security Guard','Cleaner','Driver','Nurse'
+      'Security Guard','Cleaner','Driver'
     ).required(),
     department: Joi.string().trim().valid(
       'Academics','Mathematics','Science','English','Social Studies','Languages','Physical Education','Telugu','Hindi',
-      'Administration','Admissions','Accounts','Human Resources',
-      'IT Support','Library','Transport','Hostel','Security','Maintenance'
+      'Administration','Admissions','Accounts','Transport','Hostel','Security','General'
     ).required(),
     joining_date: Joi.date().iso().required(),
     salary: Joi.number().min(0).max(10000000).optional(),

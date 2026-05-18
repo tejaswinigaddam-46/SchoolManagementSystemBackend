@@ -569,8 +569,15 @@ const getEmployeesByCampus = async (campusId, context) => {
  * @returns {Promise<Object>} Service response
  */
 const getEmployeesByDepartment = async (department, context, campusId = null) => {
+    const normalizedDepartment = (() => {
+        const d = (department ?? '').toString().trim();
+        const lc = d.toLowerCase();
+        if (lc === 'sport' || lc === 'sports') return 'Physical Education';
+        return d;
+    })();
+
     logger.info('SERVICE: Getting employees by department', {
-        department,
+        department: normalizedDepartment,
         campusId,
         tenantId: context.tenant_id,
         userRole: context.role
@@ -578,14 +585,14 @@ const getEmployeesByDepartment = async (department, context, campusId = null) =>
 
     try {
         const options = { 
-            department: department,
+            department: normalizedDepartment,
             campus_id: context.role === 'Admin' ? campusId : context.campus_id
         };
         
         const result = await employeeModel.getAllEmployees(context.tenant_id, options);
 
         return createResponse(true, 'Department employees retrieved successfully', {
-            department: department,
+            department: normalizedDepartment,
             campus_id: options.campus_id,
             employees: result.employees,
             pagination: result.pagination
