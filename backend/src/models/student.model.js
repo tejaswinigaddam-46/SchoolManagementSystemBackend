@@ -146,7 +146,14 @@ const getAnyCampusId = async (tenantId) => {
  * @returns {Promise<Object>} Created student with enrollment info
  * @throws {Error} If database operation fails
  */
-const createStudentWithClient = async (client, studentData, tenantId, campusId) => {
+const createStudentWithClient = async (client, studentData, tenantId, campusId, options = {}) => {
+    const appLogger = require('../utils/logger');
+    const logger = options?.silent
+        ? Object.assign(Object.create(appLogger), { info: () => {}, debug: () => {} })
+        : appLogger;
+    const passwordHashRounds = Number.isInteger(options?.passwordHashRounds) ? options.passwordHashRounds : 10;
+    const skipLookupValidation = Boolean(options?.skipLookupValidation);
+
     logger.info('=== MODEL: Starting createStudentWithClient ===', {
         tenantId,
         campusId,
@@ -203,11 +210,10 @@ const createStudentWithClient = async (client, studentData, tenantId, campusId) 
     // Convert date to YYYYMMDD format for consistent password format
     const dobDate = new Date(studentData.dateOfBirth);
     const dobPassword = `${dobDate.getFullYear()}${String(dobDate.getMonth() + 1).padStart(2, '0')}${String(dobDate.getDate()).padStart(2, '0')}`;
-    const passwordHash = await bcrypt.hash(dobPassword, 10); // Proper bcrypt hashing
+    const passwordHash = await bcrypt.hash(dobPassword, passwordHashRounds);
     
     logger.info('MODEL: Generated password from DOB', { 
-        originalDOB: studentData.dateOfBirth, 
-        formattedPassword: dobPassword 
+        originalDOB: studentData.dateOfBirth
     });
     
     const userData = {
@@ -227,8 +233,7 @@ const createStudentWithClient = async (client, studentData, tenantId, campusId) 
         last_name: userData.last_name,
         role: userData.role,
         phone_number: userData.phone_number,
-        date_of_birth: userData.date_of_birth,
-        password_hash: userData.password_hash
+        date_of_birth: userData.date_of_birth
     });
     
     logger.info('MODEL: Calling userModel.create');
@@ -256,29 +261,37 @@ const createStudentWithClient = async (client, studentData, tenantId, campusId) 
     
     // Resolve academic year ID from name if needed
     if (academicYearId) {
-        const resolvedAcademicYearId = await resolveAcademicYearId(academicYearId, campusId);
-        if (!resolvedAcademicYearId) {
-            logger.error('MODEL: Could not resolve academic year ID', { 
-                originalInput: academicYearId, 
-                campusId 
-            });
-            throw new Error(`Invalid academic year: ${academicYearId}. Please select a valid academic year.`);
+        if (skipLookupValidation) {
+            academicYearId = parseInt(academicYearId, 10);
+        } else {
+            const resolvedAcademicYearId = await resolveAcademicYearId(academicYearId, campusId);
+            if (!resolvedAcademicYearId) {
+                logger.error('MODEL: Could not resolve academic year ID', { 
+                    originalInput: academicYearId, 
+                    campusId 
+                });
+                throw new Error(`Invalid academic year: ${academicYearId}. Please select a valid academic year.`);
+            }
+            academicYearId = resolvedAcademicYearId;
         }
-        academicYearId = resolvedAcademicYearId;
     }
 
     // Handle class_id - resolve it properly
     let classId = studentData.class_id || studentData.class;
     if (classId) {
-        const resolvedClassId = await resolveClassId(classId, campusId);
-        if (!resolvedClassId) {
-            logger.error('MODEL: Could not resolve class ID', {
-                originalInput: classId,
-                campusId
-            });
-            throw new Error(`Invalid class: ${classId}. Please select a valid class.`);
+        if (skipLookupValidation) {
+            classId = parseInt(classId, 10);
+        } else {
+            const resolvedClassId = await resolveClassId(classId, campusId);
+            if (!resolvedClassId) {
+                logger.error('MODEL: Could not resolve class ID', {
+                    originalInput: classId,
+                    campusId
+                });
+                throw new Error(`Invalid class: ${classId}. Please select a valid class.`);
+            }
+            classId = resolvedClassId;
         }
-        classId = resolvedClassId;
     } else {
         logger.error('MODEL: Class is required');
         throw new Error('Class is required');
@@ -480,11 +493,10 @@ const createStudentWithClient = async (client, studentData, tenantId, campusId) 
                 } else {
                     parentPassword = parent.phone || 'default123';
                 }
-                const parentPasswordHash = await bcrypt.hash(parentPassword, 10); // Proper bcrypt hashing
+                const parentPasswordHash = await bcrypt.hash(parentPassword, passwordHashRounds);
                 
                 logger.info(`MODEL: Generated parent password from DOB`, { 
-                    originalDOB: parent.dateOfBirth, 
-                    formattedPassword: parentPassword 
+                    originalDOB: parent.dateOfBirth
                 });
                 
                 // Create new parent user using existing create method
@@ -1326,8 +1338,7 @@ const updateStudent = async (username, updateData, tenantId) => {
                     const parentPasswordHash = await bcrypt.hash(parentPassword, 10); // Proper bcrypt hashing
                     
                     logger.info(`MODEL: Generated parent password from DOB`, { 
-                        originalDOB: parent.dateOfBirth, 
-                        formattedPassword: parentPassword 
+                        originalDOB: parent.dateOfBirth
                     });
                     
                     // Create new parent user

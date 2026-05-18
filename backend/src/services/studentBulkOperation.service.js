@@ -3,7 +3,111 @@ const { pool } = require('../config/database');
 const studentModel = require('../models/student.model');
 const logger = require('../utils/logger');
 const fs = require('fs');
+const path = require('path');
+const crypto = require('crypto');
 const studentService = require('./student.service');
+
+const normalizePhone = (code, number) => {
+    const rawNumber = number ? number.toString().trim() : '';
+    const rawCode = code ? code.toString().trim() : '';
+    if (!rawNumber) return null;
+    if (rawNumber.startsWith('+')) return rawNumber;
+    if (!rawCode) return rawNumber;
+    const normalizedCode = rawCode.startsWith('+') ? rawCode : `+${rawCode}`;
+    return `${normalizedCode}${rawNumber}`;
+};
+
+const importJobs = new Map();
+
+const getJobPublicView = (job) => {
+    if (!job) return null;
+    return {
+        jobId: job.jobId,
+        status: job.status,
+        createdAt: job.createdAt,
+        startedAt: job.startedAt,
+        finishedAt: job.finishedAt,
+        progress: job.progress,
+        summary: job.summary,
+        error: job.error
+    };
+};
+
+const startImportStudentsJob = async (filePath, tenantId, campusId) => {
+    const jobId = crypto.randomUUID();
+    const createdAt = new Date().toISOString();
+
+    importJobs.set(jobId, {
+        jobId,
+        status: 'queued',
+        createdAt,
+        startedAt: null,
+        finishedAt: null,
+        progress: { total: 0, processed: 0, success: 0, failed: 0 },
+        summary: null,
+        error: null,
+        inputFilePath: filePath,
+        resultFilePath: null
+    });
+
+    setImmediate(async () => {
+        const job = importJobs.get(jobId);
+        if (!job) return;
+
+        job.status = 'processing';
+        job.startedAt = new Date().toISOString();
+
+        try {
+            const result = await importStudents(job.inputFilePath, tenantId, campusId, {
+                onProgress: (p) => {
+                    job.progress = p;
+                }
+            });
+
+            const resultDir = path.join(process.cwd(), 'tmp');
+            await fs.promises.mkdir(resultDir, { recursive: true });
+            const resultFilePath = path.join(resultDir, `student_import_result_${jobId}.xlsx`);
+            await fs.promises.writeFile(resultFilePath, result.resultFile);
+
+            job.summary = result.summary;
+            job.resultFilePath = resultFilePath;
+            job.status = 'done';
+            job.finishedAt = new Date().toISOString();
+        } catch (error) {
+            job.status = 'failed';
+            job.error = error.message || 'Import failed';
+            job.finishedAt = new Date().toISOString();
+            logger.error('Student import job failed', { jobId, error: error.message });
+        } finally {
+            if (job.inputFilePath) {
+                fs.unlink(job.inputFilePath, () => {});
+                job.inputFilePath = null;
+            }
+
+            setTimeout(() => {
+                const j = importJobs.get(jobId);
+                if (!j) return;
+                if (j.resultFilePath) fs.unlink(j.resultFilePath, () => {});
+                importJobs.delete(jobId);
+            }, 60 * 60 * 1000);
+        }
+    });
+
+    return jobId;
+};
+
+const getImportStudentsJob = async (jobId) => {
+    return getJobPublicView(importJobs.get(jobId));
+};
+
+const getImportStudentsJobResultBuffer = async (jobId) => {
+    const job = importJobs.get(jobId);
+    if (!job) throw new Error('Job not found');
+    if (job.status !== 'done' || !job.resultFilePath) {
+        throw new Error('Result not ready');
+    }
+    return fs.promises.readFile(job.resultFilePath);
+};
 
 
 /**
@@ -14,6 +118,27 @@ const generateTemplate = async () => {
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet('Students Import Template');
 
+    const columnNumberToName = (columnNumber) => {
+        let name = '';
+        let n = columnNumber;
+        while (n > 0) {
+            const rem = (n - 1) % 26;
+            name = String.fromCharCode(65 + rem) + name;
+            n = Math.floor((n - 1) / 26);
+        }
+        return name;
+    };
+
+    const addListValidation = (columnKey, valuesCsv, { allowBlank = true, fromRow = 2, toRow = 5000 } = {}) => {
+        const colNumber = worksheet.getColumn(columnKey).number;
+        const colLetter = columnNumberToName(colNumber);
+        worksheet.dataValidations.add(`${colLetter}${fromRow}:${colLetter}${toRow}`, {
+            type: 'list',
+            allowBlank,
+            formulae: [`"${valuesCsv}"`]
+        });
+    };
+
     // Define columns
     worksheet.columns = [
         { header: 'Admission Number*', key: 'admissionNumber', width: 20 },
@@ -21,11 +146,12 @@ const generateTemplate = async () => {
         { header: 'Last Name*', key: 'lastName', width: 20 },
         { header: 'Date of Birth* (YYYY-MM-DD)', key: 'dateOfBirth', width: 25 },
         { header: 'Email*', key: 'email', width: 25 },
+        { header: 'Phone Code', key: 'phoneCode', width: 12 },
         { header: 'Phone Number', key: 'phoneNumber', width: 15 },
         { header: 'Gender*', key: 'gender', width: 10 },
         { header: 'Class*', key: 'class', width: 10 },
         { header: 'Section', key: 'section', width: 10 },
-        { header: 'Academic Year* (e.g. 2024-2025)', key: 'academicYear', width: 25 },
+        { header: 'Academic Year* (e.g. 2026-2027)', key: 'academicYear', width: 25 },
         { header: 'Medium*', key: 'medium', width: 15 },
         { header: 'Curriculum*', key: 'curriculum', width: 15 },
         { header: 'Middle Name', key: 'middleName', width: 15 },
@@ -37,7 +163,8 @@ const generateTemplate = async () => {
         { header: 'Previous School', key: 'previousSchool', width: 20 },
         { header: 'Transport Mode', key: 'transportMode', width: 15 },
         { header: 'Hostel Required (Yes/No)', key: 'hostelRequired', width: 15 },
-        { header: 'Alternate Phone', key: 'alternatePhoneNumber', width: 15 },
+        { header: 'Alternate Phone Code', key: 'alternatePhoneCode', width: 18 },
+        { header: 'Alternate Phone Number', key: 'alternatePhoneNumber', width: 18 },
         { header: 'Nationality*', key: 'nationality', width: 15 },
         { header: 'Religion', key: 'religion', width: 15 },
         { header: 'Caste', key: 'caste', width: 15 },
@@ -58,7 +185,8 @@ const generateTemplate = async () => {
         { header: 'Parent 1 First Name*', key: 'p1FirstName', width: 20 },
         { header: 'Parent 1 Last Name*', key: 'p1LastName', width: 20 },
         { header: 'Parent 1 Email*', key: 'p1Email', width: 25 },
-        { header: 'Parent 1 Phone*', key: 'p1Phone', width: 15 },
+        { header: 'Parent 1 Phone Code*', key: 'p1PhoneCode', width: 18 },
+        { header: 'Parent 1 Phone Number*', key: 'p1Phone', width: 20 },
         { header: 'Parent 1 Relation*', key: 'p1Relation', width: 15 },
         { header: 'Parent 1 DOB* (YYYY-MM-DD)', key: 'p1Dob', width: 25 },
         { header: 'Parent 1 Occupation', key: 'p1Occupation', width: 20 },
@@ -69,7 +197,8 @@ const generateTemplate = async () => {
         { header: 'Parent 2 First Name', key: 'p2FirstName', width: 20 },
         { header: 'Parent 2 Last Name', key: 'p2LastName', width: 20 },
         { header: 'Parent 2 Email', key: 'p2Email', width: 25 },
-        { header: 'Parent 2 Phone', key: 'p2Phone', width: 15 },
+        { header: 'Parent 2 Phone Code', key: 'p2PhoneCode', width: 18 },
+        { header: 'Parent 2 Phone Number', key: 'p2Phone', width: 20 },
         { header: 'Parent 2 Relation', key: 'p2Relation', width: 15 },
         { header: 'Parent 2 DOB (YYYY-MM-DD)', key: 'p2Dob', width: 25 },
         { header: 'Parent 2 Occupation', key: 'p2Occupation', width: 20 },
@@ -86,66 +215,54 @@ const generateTemplate = async () => {
     };
 
     // Add data validation
-    // Gender
-    worksheet.getColumn('gender').dataValidation = {
-        type: 'list',
-        allowBlank: true,
-        formulae: ['"Male,Female,Other"']
-    };
+    addListValidation('phoneCode', '+91,+1,+44,+61,+971,+65,+94,+92');
+    addListValidation('alternatePhoneCode', '+91,+1,+44,+61,+971,+65,+94,+92');
+    addListValidation('p1PhoneCode', '+91,+1,+44,+61,+971,+65,+94,+92');
+    addListValidation('p2PhoneCode', '+91,+1,+44,+61,+971,+65,+94,+92');
 
-    // Yes/No fields
-    const yesNoValidation = {
-        type: 'list',
-        allowBlank: true,
-        formulae: ['"Yes,No"']
-    };
-    worksheet.getColumn('scholarshipApplied').dataValidation = yesNoValidation;
-    worksheet.getColumn('hostelRequired').dataValidation = yesNoValidation;
-    worksheet.getColumn('p1Emergency').dataValidation = yesNoValidation;
-    worksheet.getColumn('p2Emergency').dataValidation = yesNoValidation;
+    addListValidation('gender', 'Male,Female,Other');
+    addListValidation('scholarshipApplied', 'Yes,No');
+    addListValidation('hostelRequired', 'Yes,No');
+    addListValidation('p1Emergency', 'Yes,No');
+    addListValidation('p2Emergency', 'Yes,No');
 
-    // Blood Group
-    worksheet.getColumn('bloodGroup').dataValidation = {
-        type: 'list',
-        allowBlank: true,
-        formulae: ['"A+,A-,B+,B-,AB+,AB-,O+,O-"']
-    };
-
-    // Relations
-    const relationValidation = {
-        type: 'list',
-        allowBlank: true,
-        formulae: ['"Father,Mother,Guardian,Other"']
-    };
-    worksheet.getColumn('p1Relation').dataValidation = relationValidation;
-    worksheet.getColumn('p2Relation').dataValidation = relationValidation;
+    addListValidation('admissionType', 'New,Transfer,Re-admission');
+    addListValidation('category', 'General,OBC,SC,ST,EWS');
+    addListValidation('transportMode', 'School Bus,Private Vehicle,Walking,Public Transport');
+    addListValidation('bloodGroup', 'A+,A-,B+,B-,AB+,AB-,O+,O-');
+    addListValidation('p1Relation', 'Father,Mother,Guardian,Other');
+    addListValidation('p2Relation', 'Father,Mother,Guardian,Other');
 
     // Add an example row
     worksheet.addRow({
         admissionNumber: 'ADM001',
-        firstName: 'John',
-        lastName: 'Doe',
+        firstName: 'Arjun',
+        lastName: 'Kumar',
         dateOfBirth: '2010-01-01',
-        email: 'john.doe@example.com',
+        email: 'arjun.kumar@example.com',
+        phoneCode: '+91',
         phoneNumber: '9876543210',
         gender: 'Male',
         class: '10',
         section: 'A',
-        academicYear: '2024-2025',
+        academicYear: '2026-2027',
         admissionDate: '2024-04-01',
-        admissionType: 'Regular',
+        admissionType: 'New',
         scholarshipApplied: 'No',
         hostelRequired: 'No',
+        alternatePhoneCode: '+91',
+        alternatePhoneNumber: '9876543212',
         nationality: 'Indian',
         currentAddress: '123 Main St',
-        city: 'New York',
-        state: 'NY',
-        country: 'USA',
-        p1FirstName: 'Jane',
-        p1LastName: 'Doe',
-        p1Email: 'jane.doe@example.com',
+        city: 'Guntur',
+        state: 'AP',
+        country: 'India',
+        p1FirstName: 'Abhi',
+        p1LastName: 'Kumar',
+        p1Email: 'abhi.kumar@example.com',
+        p1PhoneCode: '+91',
         p1Phone: '9876543211',
-        p1Relation: 'Mother',
+        p1Relation: 'Father',
         p1Dob: '1980-01-01',
         p1Emergency: 'Yes',
         p1Occupation: 'Engineer',
@@ -162,7 +279,8 @@ const generateTemplate = async () => {
  * @param {string} campusId - Campus ID
  * @returns {Promise<Object>} Object containing summary and result file buffer
  */
-const importStudents = async (filePath, tenantId, campusId) => {
+const importStudents = async (filePath, tenantId, campusId, options = {}) => {
+    const onProgress = typeof options.onProgress === 'function' ? options.onProgress : null;
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.readFile(filePath);
     
@@ -210,7 +328,7 @@ const importStudents = async (filePath, tenantId, campusId) => {
             lastName: getValue(row, 'Last Name'),
             dateOfBirth: getValue(row, 'Date of Birth'),
             email: getValue(row, 'Email'),
-            phoneNumber: getValue(row, 'Phone Number'),
+            phoneNumber: normalizePhone(getValue(row, 'Phone Code'), getValue(row, 'Phone Number')),
             gender: getValue(row, 'Gender'),
             class: getValue(row, 'Class'),
             section: getValue(row, 'Section'),
@@ -226,7 +344,10 @@ const importStudents = async (filePath, tenantId, campusId) => {
             previousSchool: getValue(row, 'Previous School'),
             transportMode: getValue(row, 'Transport Mode'),
             hostelRequired: getValue(row, 'Hostel Required'),
-            alternatePhoneNumber: getValue(row, 'Alternate Phone'),
+            alternatePhoneNumber: normalizePhone(
+                getValue(row, 'Alternate Phone Code'),
+                getValue(row, 'Alternate Phone Number')
+            ),
             nationality: getValue(row, 'Nationality'),
             religion: getValue(row, 'Religion'),
             caste: getValue(row, 'Caste'),
@@ -252,7 +373,10 @@ const importStudents = async (filePath, tenantId, campusId) => {
             firstName: getValue(row, 'Parent 1 First Name'),
             lastName: getValue(row, 'Parent 1 Last Name'),
             email: getValue(row, 'Parent 1 Email'),
-            phone: getValue(row, 'Parent 1 Phone'),
+            phone: normalizePhone(
+                getValue(row, 'Parent 1 Phone Code'),
+                getValue(row, 'Parent 1 Phone Number')
+            ),
             relation: getValue(row, 'Parent 1 Relation'),
             dateOfBirth: getValue(row, 'Parent 1 DOB'),
             occupation: getValue(row, 'Parent 1 Occupation'),
@@ -266,7 +390,10 @@ const importStudents = async (filePath, tenantId, campusId) => {
             firstName: getValue(row, 'Parent 2 First Name'),
             lastName: getValue(row, 'Parent 2 Last Name'),
             email: getValue(row, 'Parent 2 Email'),
-            phone: getValue(row, 'Parent 2 Phone'),
+            phone: normalizePhone(
+                getValue(row, 'Parent 2 Phone Code'),
+                getValue(row, 'Parent 2 Phone Number')
+            ),
             relation: getValue(row, 'Parent 2 Relation'),
             dateOfBirth: getValue(row, 'Parent 2 DOB'),
             occupation: getValue(row, 'Parent 2 Occupation'),
@@ -279,6 +406,15 @@ const importStudents = async (filePath, tenantId, campusId) => {
     });
 
     results.total = studentsToProcess.length;
+    let processedCount = 0;
+    if (onProgress) {
+        onProgress({
+            total: results.total,
+            processed: processedCount,
+            success: results.success,
+            failed: results.failed
+        });
+    }
 
     // Output Workbook for results
     const resultWorkbook = new ExcelJS.Workbook();
@@ -301,17 +437,62 @@ const importStudents = async (filePath, tenantId, campusId) => {
     // Style header
     resultWorksheet.getRow(1).font = { bold: true };
 
-    const BATCH_SIZE = 10; // Smaller batch size for better error handling with complex parent creation
+    const academicYearLookup = new Map();
+    const classByName = new Map();
+    const classesByLevel = new Map();
 
-    const processStudent = async (item) => {
+    {
+        const res = await pool.query(
+            `SELECT
+                ay.academic_year_id,
+                LOWER(ay.year_name) AS year_name_lc,
+                LOWER(ay.medium) AS medium_lc,
+                LOWER(c.curriculum_name) AS curriculum_name_lc,
+                LOWER(c.curriculum_code) AS curriculum_code_lc
+             FROM academic_years ay
+             JOIN curricula c ON ay.curriculum_id = c.curriculum_id
+             WHERE ay.campus_id = $1`,
+            [campusId]
+        );
+
+        for (const r of res.rows) {
+            const base = `${r.year_name_lc}|${r.medium_lc}|`;
+            if (r.curriculum_name_lc) {
+                academicYearLookup.set(`${base}${r.curriculum_name_lc}`, r.academic_year_id);
+            }
+            if (r.curriculum_code_lc) {
+                academicYearLookup.set(`${base}${r.curriculum_code_lc}`, r.academic_year_id);
+            }
+        }
+    }
+
+    {
+        const res = await pool.query(
+            `SELECT class_id, class_name, LOWER(class_name) AS class_name_lc, class_level
+             FROM classes
+             WHERE campus_id = $1`,
+            [campusId]
+        );
+
+        for (const r of res.rows) {
+            if (r.class_name_lc) classByName.set(r.class_name_lc, r);
+            if (r.class_level !== null && r.class_level !== undefined) {
+                const key = String(r.class_level);
+                if (!classesByLevel.has(key)) classesByLevel.set(key, []);
+                classesByLevel.get(key).push(r);
+            }
+        }
+    }
+
+    const resultRowByRowNumber = new Map();
+
+    const prepareStudent = (item) => {
         const rowData = {};
-        // Copy original data to result row
         item.originalRow.eachCell((cell, colNumber) => {
             const val = cell.value;
             rowData[`col_${colNumber}`] = (val && typeof val === 'object' && val.text) ? val.text : val;
         });
 
-        // Validation
         const missingFields = [];
         if (!item.data.admissionNumber) missingFields.push('Admission Number');
         if (!item.data.firstName) missingFields.push('First Name');
@@ -326,8 +507,7 @@ const importStudents = async (filePath, tenantId, campusId) => {
         if (!item.data.currentAddress) missingFields.push('Current Address');
         if (!item.data.city) missingFields.push('City');
         if (!item.data.state) missingFields.push('State');
-        
-        // Parent validation
+
         if (item.data.parents.length === 0) {
             missingFields.push('At least one parent is required');
         } else {
@@ -335,7 +515,7 @@ const importStudents = async (filePath, tenantId, campusId) => {
             if (!p1.firstName) missingFields.push('Parent 1 First Name');
             if (!p1.lastName) missingFields.push('Parent 1 Last Name');
             if (!p1.email) missingFields.push('Parent 1 Email');
-            if (!p1.phone) missingFields.push('Parent 1 Phone');
+            if (!p1.phone) missingFields.push('Parent 1 Phone Number');
             if (!p1.relation) missingFields.push('Parent 1 Relation');
             if (!p1.dateOfBirth) missingFields.push('Parent 1 DOB');
         }
@@ -344,11 +524,10 @@ const importStudents = async (filePath, tenantId, campusId) => {
             results.failed++;
             rowData.status = 'Failed';
             rowData.error = `Missing required fields: ${missingFields.join(', ')}`;
-            resultWorksheet.addRow(rowData);
-            return;
+            resultRowByRowNumber.set(item.rowNumber, rowData);
+            return null;
         }
 
-        // Format dates
         try {
             const dob = new Date(item.data.dateOfBirth);
             if (isNaN(dob.getTime())) throw new Error('Invalid Student DOB');
@@ -358,15 +537,13 @@ const importStudents = async (filePath, tenantId, campusId) => {
             if (isNaN(admDate.getTime())) throw new Error('Invalid Admission Date');
             item.data.admissionDate = admDate.toISOString().split('T')[0];
 
-            // Parent dates
             item.data.parents.forEach((p, idx) => {
                 if (p.dateOfBirth) {
                     const pDob = new Date(p.dateOfBirth);
-                    if (isNaN(pDob.getTime())) throw new Error(`Invalid Parent ${idx+1} DOB`);
+                    if (isNaN(pDob.getTime())) throw new Error(`Invalid Parent ${idx + 1} DOB`);
                     p.dateOfBirth = pDob.toISOString().split('T')[0];
                 }
-                
-                p.isEmergency = p.isEmergency && p.isEmergency.toLowerCase() === 'yes';
+                p.isEmergency = typeof p.isEmergency === 'string' ? p.isEmergency.toLowerCase() === 'yes' : Boolean(p.isEmergency);
             });
 
             item.data.scholarshipApplied = item.data.scholarshipApplied?.toLowerCase() === 'yes' ? 'Yes' : 'No';
@@ -388,107 +565,167 @@ const importStudents = async (filePath, tenantId, campusId) => {
                 }
             }
 
-        } catch (err) {
-            results.failed++;
-            rowData.status = 'Failed';
-            rowData.error = err.message;
-            resultWorksheet.addRow(rowData);
-            return;
-        }
-
-        // Process Database Insertion
-        const client = await pool.connect();
-        try {
-            await client.query('BEGIN');
-            
-            // Query for academic year
             const academicYearInput = item.data.academicYear.toString().trim();
             const mediumInput = item.data.medium.toString().trim();
             const curriculumInput = item.data.curriculum.toString().trim();
 
-            const yearRes = await client.query(
-                `SELECT ay.academic_year_id 
-                 FROM academic_years ay
-                 JOIN curricula c ON ay.curriculum_id = c.curriculum_id
-                 WHERE ay.campus_id = $1 
-                 AND LOWER(ay.year_name) = LOWER($2) 
-                 AND LOWER(ay.medium) = LOWER($3)
-                 AND (LOWER(c.curriculum_name) = LOWER($4) OR LOWER(c.curriculum_code) = LOWER($4))`,
-                [campusId, academicYearInput, mediumInput, curriculumInput]
-            );
-            
-            if (yearRes.rows.length === 0) {
+            const yearKey = `${academicYearInput.toLowerCase()}|${mediumInput.toLowerCase()}|${curriculumInput.toLowerCase()}`;
+            const academicYearId = academicYearLookup.get(yearKey);
+            if (!academicYearId) {
                 throw new Error(`Academic Year '${academicYearInput}' with medium '${mediumInput}' and curriculum '${curriculumInput}' not found. Please check if the academic year exists and matches the specified medium and curriculum.`);
             }
-            item.data.academicYearId = yearRes.rows[0].academic_year_id;
+            item.data.academicYearId = academicYearId;
 
-            // Resolve class name to match existing classes to satisfy FK constraint
             if (item.data.class) {
                 const classInputRaw = item.data.class.toString().trim();
-                const classLevelNumeric = /^[0-9]+$/.test(classInputRaw) ? parseInt(classInputRaw, 10) : null;
-                
-                // Try exact class_name (case-insensitive) match first
-                let classRes = await client.query(
-                    `SELECT class_id, class_name, class_level 
-                     FROM classes 
-                     WHERE campus_id = $1 AND LOWER(class_name) = LOWER($2)
-                     ORDER BY class_id ASC`,
-                    [campusId, classInputRaw]
-                );
-                
-                // If not found and input is numeric, try by class_level
-                if (classRes.rows.length === 0 && classLevelNumeric !== null) {
-                    classRes = await client.query(
-                        `SELECT class_id, class_name, class_level 
-                         FROM classes 
-                         WHERE campus_id = $1 AND class_level = $2
-                         ORDER BY class_id ASC`,
-                        [campusId, classLevelNumeric]
-                    );
-                    
-                    // If multiple classes share the same level, avoid ambiguity
-                    if (classRes.rows.length > 1) {
-                        throw new Error(`Multiple classes found for level '${classLevelNumeric}'. Please use an exact class name. Options: ${classRes.rows.map(r => r.class_name).join(', ')}`);
+
+                const classRow = classByName.get(classInputRaw.toLowerCase());
+                if (classRow) {
+                    item.data.class_id = classRow.class_id;
+                    item.data.class = classRow.class_name;
+                } else if (/^[0-9]+$/.test(classInputRaw)) {
+                    const candidates = classesByLevel.get(String(parseInt(classInputRaw, 10))) || [];
+                    if (candidates.length > 1) {
+                        throw new Error(`Multiple classes found for level '${parseInt(classInputRaw, 10)}'. Please use an exact class name. Options: ${candidates.map(r => r.class_name).join(', ')}`);
                     }
-                }
-                
-                if (classRes.rows.length === 0) {
+                    if (candidates.length === 0) {
+                        throw new Error(`Class '${classInputRaw}' not found in campus. Please create the class or use the exact class name as in system.`);
+                    }
+                    item.data.class_id = candidates[0].class_id;
+                    item.data.class = candidates[0].class_name;
+                } else {
                     throw new Error(`Class '${classInputRaw}' not found in campus. Please create the class or use the exact class name as in system.`);
                 }
-                
-                // Set canonical class_id from DB to satisfy FK
-                item.data.class_id = classRes.rows[0].class_id;
-                // Keep class name for any other logging or legacy uses if needed, but class_id takes precedence in model
-                item.data.class = classRes.rows[0].class_name;
             }
 
-            // Call model
-            await studentModel.createStudentWithClient(client, item.data, tenantId, campusId);
-            
-            await client.query('COMMIT');
-            results.success++;
-            rowData.status = 'Success';
+            rowData.status = 'Pending';
             rowData.error = '';
-        } catch (error) {
-            await client.query('ROLLBACK');
+            resultRowByRowNumber.set(item.rowNumber, rowData);
+            return { rowNumber: item.rowNumber, rowData, studentData: item.data };
+        } catch (err) {
             results.failed++;
             rowData.status = 'Failed';
-            rowData.error = error.message;
-            logger.error('Bulk Import Error', { error: error.message, row: item.rowNumber });
-        } finally {
-            client.release();
+            rowData.error = err.message;
+            resultRowByRowNumber.set(item.rowNumber, rowData);
+            return null;
         }
-        
-        resultWorksheet.addRow(rowData);
     };
 
-    // Process in batches
-    for (let i = 0; i < studentsToProcess.length; i += BATCH_SIZE) {
-        const batch = studentsToProcess.slice(i, i + BATCH_SIZE);
-        await Promise.all(batch.map(item => processStudent(item)));
+    const preparedStudents = [];
+    for (const item of studentsToProcess) {
+        const prepared = prepareStudent(item);
+        if (prepared) preparedStudents.push(prepared);
+    }
+    processedCount = results.failed;
+    if (onProgress) {
+        onProgress({
+            total: results.total,
+            processed: processedCount,
+            success: results.success,
+            failed: results.failed
+        });
+    }
+
+    const poolMax = pool?.options?.max || 20;
+    const TX_BATCH_SIZE = 50;
+    const TX_CONCURRENCY = Math.max(
+        1,
+        Math.min(4, poolMax, Math.ceil(preparedStudents.length / TX_BATCH_SIZE))
+    );
+
+    const batches = [];
+    for (let i = 0; i < preparedStudents.length; i += TX_BATCH_SIZE) {
+        batches.push(preparedStudents.slice(i, i + TX_BATCH_SIZE));
+    }
+
+    let nextBatchIndex = 0;
+    const workers = Array.from({ length: TX_CONCURRENCY }, async () => {
+        while (nextBatchIndex < batches.length) {
+            const batchIndex = nextBatchIndex++;
+            const batch = batches[batchIndex];
+
+            const client = await pool.connect();
+            try {
+                await client.query('BEGIN');
+                for (let i = 0; i < batch.length; i++) {
+                    const { rowNumber, rowData, studentData } = batch[i];
+                    const savepoint = `sp_${batchIndex}_${i}`;
+                    try {
+                        await client.query(`SAVEPOINT ${savepoint}`);
+                        await studentModel.createStudentWithClient(client, studentData, tenantId, campusId, {
+                            silent: true,
+                            passwordHashRounds: 6,
+                            skipLookupValidation: true
+                        });
+                        await client.query(`RELEASE SAVEPOINT ${savepoint}`);
+
+                        results.success++;
+                        processedCount++;
+                        rowData.status = 'Success';
+                        rowData.error = '';
+                    } catch (error) {
+                        try {
+                            await client.query(`ROLLBACK TO SAVEPOINT ${savepoint}`);
+                            await client.query(`RELEASE SAVEPOINT ${savepoint}`);
+                        } catch (_) {}
+
+                        results.failed++;
+                        processedCount++;
+                        rowData.status = 'Failed';
+                        rowData.error = error.message;
+                        logger.error('Bulk Import Error', { error: error.message, row: rowNumber });
+                    }
+                }
+                await client.query('COMMIT');
+                if (onProgress) {
+                    onProgress({
+                        total: results.total,
+                        processed: processedCount,
+                        success: results.success,
+                        failed: results.failed
+                    });
+                }
+            } catch (error) {
+                try { await client.query('ROLLBACK'); } catch (_) {}
+                logger.error('Bulk Import Batch Error', { error: error.message, batchIndex });
+                for (const { rowData } of batch) {
+                    if (rowData.status === 'Pending') {
+                        results.failed++;
+                        processedCount++;
+                        rowData.status = 'Failed';
+                        rowData.error = 'Batch failed during import';
+                    }
+                }
+                if (onProgress) {
+                    onProgress({
+                        total: results.total,
+                        processed: processedCount,
+                        success: results.success,
+                        failed: results.failed
+                    });
+                }
+            } finally {
+                client.release();
+            }
+        }
+    });
+
+    await Promise.all(workers);
+
+    for (const item of studentsToProcess) {
+        const rowData = resultRowByRowNumber.get(item.rowNumber);
+        if (rowData) resultWorksheet.addRow(rowData);
     }
 
     const resultBuffer = await resultWorkbook.xlsx.writeBuffer();
+    if (onProgress) {
+        onProgress({
+            total: results.total,
+            processed: processedCount,
+            success: results.success,
+            failed: results.failed
+        });
+    }
     return {
         summary: results,
         resultFile: resultBuffer
@@ -569,7 +806,7 @@ const updateStudents = async (filePath, tenantId, campusId) => {
             lastName: getValue(row, 'Last Name'),
             dateOfBirth: getValue(row, 'Date of Birth'),
             email: getValue(row, 'Email'),
-            phoneNumber: getValue(row, 'Phone Number'),
+            phoneNumber: normalizePhone(getValue(row, 'Phone Code'), getValue(row, 'Phone Number')),
             gender: getValue(row, 'Gender'),
             class: getValue(row, 'Class'),
             section: getValue(row, 'Section'),
@@ -585,7 +822,7 @@ const updateStudents = async (filePath, tenantId, campusId) => {
             previousSchool: getValue(row, 'Previous School'),
             transportMode: getValue(row, 'Transport Mode'),
             hostelRequired: getValue(row, 'Hostel Required'),
-            alternatePhoneNumber: getValue(row, 'Alternate Phone'),
+            alternatePhoneNumber: normalizePhone(getValue(row, 'Alternate Phone Code'), getValue(row, 'Alternate Phone Number')),
             nationality: getValue(row, 'Nationality'),
             religion: getValue(row, 'Religion'),
             caste: getValue(row, 'Caste'),
@@ -628,7 +865,7 @@ const updateStudents = async (filePath, tenantId, campusId) => {
             firstName: getParentValue('Father', 'First Name'),
             lastName: getParentValue('Father', 'Last Name'),
             email: getParentValue('Father', 'Email'),
-            phone: getParentValue('Father', 'Phone'),
+            phone: normalizePhone(getParentValue('Father', 'Phone Code'), getParentValue('Father', 'Phone Number')),
             relation: 'Father', // Fixed for P1 if using Father headers
             // occupation: getParentValue('Father', 'Occupation'), // Add if needed
         };
@@ -637,7 +874,7 @@ const updateStudents = async (filePath, tenantId, campusId) => {
              p1.firstName = getValue(row, 'Parent 1 First Name');
              p1.lastName = getValue(row, 'Parent 1 Last Name');
              p1.email = getValue(row, 'Parent 1 Email');
-             p1.phone = getValue(row, 'Parent 1 Phone');
+             p1.phone = normalizePhone(getValue(row, 'Parent 1 Phone Code'), getValue(row, 'Parent 1 Phone Number'));
              p1.relation = getValue(row, 'Parent 1 Relation');
         }
 
@@ -647,14 +884,14 @@ const updateStudents = async (filePath, tenantId, campusId) => {
             firstName: getParentValue('Mother', 'First Name'),
             lastName: getParentValue('Mother', 'Last Name'),
             email: getParentValue('Mother', 'Email'),
-            phone: getParentValue('Mother', 'Phone'),
+            phone: normalizePhone(getParentValue('Mother', 'Phone Code'), getParentValue('Mother', 'Phone Number')),
             relation: 'Mother',
         };
          if (!p2.firstName && getValue(row, 'Parent 2 First Name')) {
              p2.firstName = getValue(row, 'Parent 2 First Name');
              p2.lastName = getValue(row, 'Parent 2 Last Name');
              p2.email = getValue(row, 'Parent 2 Email');
-             p2.phone = getValue(row, 'Parent 2 Phone');
+             p2.phone = normalizePhone(getValue(row, 'Parent 2 Phone Code'), getValue(row, 'Parent 2 Phone Number'));
              p2.relation = getValue(row, 'Parent 2 Relation');
         }
 
@@ -955,5 +1192,8 @@ module.exports = {
     generateTemplate,
     importStudents,
     updateStudents,
-    exportStudents
+    exportStudents,
+    startImportStudentsJob,
+    getImportStudentsJob,
+    getImportStudentsJobResultBuffer
 };

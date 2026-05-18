@@ -146,6 +146,13 @@ const deleteBuilding = async (req, res) => {
             });
         }
 
+        if (error.code === '23503' && error.constraint === 'campus_rooms_building_id_fkey') {
+            return res.status(400).json({
+                success: false,
+                message: 'Delete rooms associated with the building and then delete the building'
+            });
+        }
+
         res.status(500).json({
             success: false,
             message: 'Internal server error while deleting building'

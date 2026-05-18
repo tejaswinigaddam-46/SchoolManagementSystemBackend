@@ -26,6 +26,31 @@ router.post(
 );
 
 router.post(
+  '/import/async',
+  authenticate,
+  requirePermission(PERMISSIONS.STUDENT_IMPORT_CREATE),
+  upload.single('file'),
+  validate(studentBulkOperationSchema.uploadStudents),
+  studentBulkOperationController.uploadStudentsAsync
+);
+
+router.get(
+  '/import/jobs/:jobId',
+  authenticate,
+  requirePermission(PERMISSIONS.STUDENT_IMPORT_CREATE),
+  validate(studentBulkOperationSchema.importJobStatus),
+  studentBulkOperationController.getImportJobStatus
+);
+
+router.get(
+  '/import/jobs/:jobId/result',
+  authenticate,
+  requirePermission(PERMISSIONS.STUDENT_IMPORT_CREATE),
+  validate(studentBulkOperationSchema.importJobResult),
+  studentBulkOperationController.downloadImportJobResult
+);
+
+router.post(
   '/export',
   authenticate,
   requirePermission(PERMISSIONS.STUDENT_EXPORT_CREATE),

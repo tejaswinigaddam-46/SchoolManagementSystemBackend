@@ -25,6 +25,10 @@ const uploadStudentsBody = Joi.object({
     })
 });
 
+const importJobParams = Joi.object({
+    jobId: Joi.string().uuid().required()
+});
+
 
 module.exports = {
     exportStudents: {
@@ -35,6 +39,14 @@ module.exports = {
         user: userContext,
         file: fileSchema,
         body: uploadStudentsBody
+    },
+    importJobStatus: {
+        user: userContext,
+        params: importJobParams
+    },
+    importJobResult: {
+        user: userContext,
+        params: importJobParams
     },
     updateStudents: {
         user: userContext,

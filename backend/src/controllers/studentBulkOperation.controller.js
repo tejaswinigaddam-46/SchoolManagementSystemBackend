@@ -25,6 +25,9 @@ const downloadTemplate = async (req, res) => {
  */
 const uploadStudents = async (req, res) => {
     try {
+        req.setTimeout(30 * 60 * 1000);
+        res.setTimeout(30 * 60 * 1000);
+
         if (!req.file) {
             return errorResponse(res, 'No file uploaded', 400);
         }
@@ -60,6 +63,59 @@ const uploadStudents = async (req, res) => {
         
         logger.error('Error processing student bulk import', { error: error.message });
         return errorResponse(res, error.message || 'Failed to process bulk import', 500);
+    }
+};
+
+const uploadStudentsAsync = async (req, res) => {
+    try {
+        if (!req.file) {
+            return errorResponse(res, 'No file uploaded', 400);
+        }
+
+        const filePath = req.file.path;
+        const tenantId = req.user?.tenantId || req.tenantId;
+        const campusId = req.body.campusId || req.user?.campusId || req.campusId || null;
+
+        const jobId = await studentBulkOperationService.startImportStudentsJob(filePath, tenantId, campusId);
+
+        return res.status(202).json({
+            success: true,
+            jobId
+        });
+    } catch (error) {
+        if (req.file && req.file.path) {
+            fs.unlink(req.file.path, () => {});
+        }
+        logger.error('Error starting async student bulk import', { error: error.message });
+        return errorResponse(res, error.message || 'Failed to start bulk import', 500);
+    }
+};
+
+const getImportJobStatus = async (req, res) => {
+    try {
+        const { jobId } = req.params;
+        const job = await studentBulkOperationService.getImportStudentsJob(jobId);
+        if (!job) {
+            return errorResponse(res, 'Job not found', 404);
+        }
+        return res.status(200).json({ success: true, job });
+    } catch (error) {
+        logger.error('Error fetching import job status', { error: error.message });
+        return errorResponse(res, 'Failed to fetch job status', 500);
+    }
+};
+
+const downloadImportJobResult = async (req, res) => {
+    try {
+        const { jobId } = req.params;
+        const buffer = await studentBulkOperationService.getImportStudentsJobResultBuffer(jobId);
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', 'attachment; filename=Student_Import_Result.xlsx');
+        return res.send(buffer);
+    } catch (error) {
+        const msg = error.message === 'Result not ready' ? 'Import still processing' : (error.message || 'Failed to download result');
+        const code = error.message === 'Job not found' ? 404 : (error.message === 'Result not ready' ? 409 : 500);
+        return errorResponse(res, msg, code);
     }
 };
 
@@ -141,6 +197,9 @@ const exportStudents = async (req, res) => {
 module.exports = {
     downloadTemplate,
     uploadStudents,
+    uploadStudentsAsync,
+    getImportJobStatus,
+    downloadImportJobResult,
     bulkUpdateStudents,
     exportStudents
 };
