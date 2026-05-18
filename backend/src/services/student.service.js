@@ -237,11 +237,22 @@ const getAllStudents = async (tenantId, options = {}) => {
         throw new Error('Tenant ID is required');
     }
     
-    const { page = 1, limit = 20, search = '', academic_year = '', curriculum = '', medium = '', status = 'active' } = options;
+    const {
+        page = 1,
+        limit = 20,
+        search = '',
+        academic_year = '',
+        curriculum = '',
+        medium = '',
+        status = 'active',
+        class_id = null,
+        section_id = null,
+        campus_id = ''
+    } = options;
     
     console.log('🔄 SERVICE getAllStudents called with:', {
         tenantId,
-        options: { page, limit, search, academic_year, curriculum, medium, status }
+        options: { page, limit, search, academic_year, curriculum, medium, status, class_id, section_id, campus_id }
     });
     
     // Validate pagination
@@ -254,11 +265,14 @@ const getAllStudents = async (tenantId, options = {}) => {
         const result = await studentModel.getAllStudents(tenantId, {
             page: parseInt(page),
             limit: parseInt(limit),
-            search: search.trim(),
-            academic_year: academic_year.trim(),
-            curriculum: curriculum.trim(),
-            medium: medium.trim(),
-            status: status.trim()
+            search: (search ?? '').toString().trim(),
+            academic_year: (academic_year ?? '').toString().trim(),
+            curriculum: (curriculum ?? '').toString().trim(),
+            medium: (medium ?? '').toString().trim(),
+            status: (status ?? '').toString().trim(),
+            class_id,
+            section_id,
+            campus_id
         });
         
         console.log('📋 SERVICE: Raw result from model:', {
