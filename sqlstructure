@@ -471,7 +471,7 @@ CREATE TYPE department_enum AS ENUM (
     'Transport',
     'Hostel',
     'Security',
-    'Maintenance'
+    'General'
 );
 
  
