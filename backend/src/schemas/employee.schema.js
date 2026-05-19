@@ -46,7 +46,7 @@ const createEmployeeBody = Joi.object({
   employment: Joi.object({
     employee_id: Joi.string().trim().min(3).max(20).pattern(/^[a-zA-Z0-9-]+$/).required(),
     designation: Joi.string().trim().valid(
-      'Principal','Vice-Principal','Headmaster','Administrator',
+      'Principal','Vice-Principal','Administrator',
       'Senior Teacher','Teacher','Assistant Teacher',
       'Accountant','Office Clerk','Receptionist',
       'Security Guard','Cleaner','Driver'
@@ -58,7 +58,7 @@ const createEmployeeBody = Joi.object({
     joining_date: Joi.date().iso().required(),
     salary: Joi.number().min(0).max(10000000).optional(),
     employment_type: Joi.string().trim().valid('Full-time','Part-time','Contract','Temporary','Intern').optional(),
-    status: Joi.string().trim().valid('Active','On Leave','Inactive','Terminated').optional(),
+    status: Joi.string().trim().valid('Active','On Leave','On-Leave','Inactive','Resigned','Terminated').optional(),
     transport_details: Joi.string().trim().allow(null, '').optional(),
     hostel_details: Joi.string().trim().allow(null, '').optional()
   }).required(),
@@ -143,16 +143,15 @@ module.exports = {
       department: Joi.string().trim().valid(
         'Academics','Mathematics','Science','English','Social Studies','Languages','Physical Education',
         'Administration','Admissions','Accounts','Human Resources',
-        'IT Support','Library','Transport','Hostel','Security','Maintenance'
+        'IT Support','Library','Transport','Hostel','Security','General'
       ).optional(),
       designation: Joi.string().trim().valid(
-        'Principal','Vice-Principal','Headmaster','Administrator',
-        'Senior Teacher','Teacher','Assistant Teacher','Substitute Teacher',
-        'Librarian','Lab Assistant','IT Support',
+        'Principal','Vice-Principal','Administrator',
+        'Senior Teacher','Teacher','Assistant Teacher',
         'Accountant','Office Clerk','Receptionist',
-        'Security Guard','Cleaner','Driver','Nurse'
+        'Security Guard','Cleaner','Driver'
       ).optional(),
-      status: Joi.string().trim().valid('Active','On Leave','Inactive','Terminated').optional(),
+      status: Joi.string().trim().valid('Active','On Leave','On-Leave','Inactive','Resigned','Terminated').optional(),
       employment_type: Joi.string().trim().valid('Full-time','Part-time','Contract','Temporary','Intern').optional(),
       campus_id: Joi.string().trim().uuid().optional(),
       role: Joi.string().trim().allow('').optional()

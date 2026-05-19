@@ -4,6 +4,19 @@ const userModel = require('./user.model');
 const crypto = require('crypto');
 const bcrypt = require('bcrypt');
 
+const normalizeEmploymentStatus = (status) => {
+    const raw = status === undefined || status === null ? '' : status.toString().trim();
+    if (!raw) return raw;
+    const lc = raw.toLowerCase();
+    if (lc === 'on leave') return 'On-Leave';
+    if (lc === 'on-leave') return 'On-Leave';
+    if (lc === 'inactive') return 'Resigned';
+    if (lc === 'resigned') return 'Resigned';
+    if (lc === 'terminated') return 'Terminated';
+    if (lc === 'active') return 'Active';
+    return raw;
+};
+
 // ==================== EMPLOYEE MODEL METHODS ====================
 
 /**
@@ -211,7 +224,7 @@ const createEmployeeWithClient = async (client, employeeData, tenantId, campusId
         employeeData.employment.joining_date,
         employeeData.employment.salary || 0,
         employeeData.employment.employment_type || 'Full-time',
-        employeeData.employment.status || 'Active',
+        normalizeEmploymentStatus(employeeData.employment.status) || 'Active',
         employeeData.employment.transport_details?.trim() || null,
         employeeData.employment.hostel_details?.trim() || null
     ];
@@ -479,6 +492,7 @@ const getAllEmployees = async (tenantId, options = {}) => {
     });
     
     const offset = (page - 1) * limit;
+    const normalizedStatus = normalizeEmploymentStatus(status);
     
     let whereClause = 'WHERE u.tenant_id = $1';
     let queryParams = [tenantId];
@@ -520,9 +534,9 @@ const getAllEmployees = async (tenantId, options = {}) => {
     }
     
     // Add status filter
-    if (status.trim()) {
+    if (normalizedStatus.trim()) {
         whereClause += ` AND ed.status = $${paramCounter}`;
-        queryParams.push(status.trim());
+        queryParams.push(normalizedStatus.trim());
         paramCounter++;
     }
     
@@ -638,7 +652,7 @@ const updateEmployee = async (username, updateData, tenantId) => {
             if (updateData.employment.joining_date !== undefined) employmentUpdates.joining_date = updateData.employment.joining_date;
             if (updateData.employment.salary !== undefined) employmentUpdates.salary = updateData.employment.salary;
             if (updateData.employment.employment_type !== undefined) employmentUpdates.employment_type = updateData.employment.employment_type;
-            if (updateData.employment.status !== undefined) employmentUpdates.status = updateData.employment.status;
+            if (updateData.employment.status !== undefined) employmentUpdates.status = normalizeEmploymentStatus(updateData.employment.status);
             if (updateData.employment.transport_details !== undefined) employmentUpdates.transport_details = updateData.employment.transport_details;
             if (updateData.employment.hostel_details !== undefined) employmentUpdates.hostel_details = updateData.employment.hostel_details;
             

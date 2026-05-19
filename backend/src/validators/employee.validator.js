@@ -168,7 +168,7 @@ const createEmployeeValidation = [
             // Administrative Departments
             'Administration', 'Admissions', 'Accounts', 'Human Resources',
             // Support Departments
-            'IT Support', 'Library', 'Transport', 'Hostel', 'Security', 'Maintenance'
+            'IT Support', 'Library', 'Transport', 'Hostel', 'Security', 'General'
         ])
         .withMessage('Invalid department selected'),
 
@@ -177,15 +177,13 @@ const createEmployeeValidation = [
         .withMessage('Designation is required')
         .isIn([
             // Administrative Roles
-            'Principal', 'Vice-Principal', 'Headmaster', 'Administrator',
+            'Principal', 'Vice-Principal', 'Administrator',
             // Teaching Roles
-            'Senior Teacher', 'Teacher', 'Assistant Teacher', 'Substitute Teacher',
-            // Support Staff
-            'Librarian', 'Lab Assistant', 'IT Support',
+            'Senior Teacher', 'Teacher', 'Assistant Teacher', 
             // Office Staff
             'Accountant', 'Office Clerk', 'Receptionist',
             // Other Staff
-            'Security Guard', 'Cleaner', 'Driver', 'Nurse'
+            'Security Guard', 'Cleaner', 'Driver'
         ])
         .withMessage('Invalid designation selected'),
 
@@ -460,7 +458,7 @@ const updateEmployeeValidation = [
             // Administrative Departments
             'Administration', 'Admissions', 'Accounts', 'Human Resources',
             // Support Departments
-            'IT Support', 'Library', 'Transport', 'Hostel', 'Security', 'Maintenance'
+            'IT Support', 'Library', 'Transport', 'Hostel', 'Security', 'General'
         ])
         .withMessage('Invalid department selected'),
 
@@ -468,15 +466,13 @@ const updateEmployeeValidation = [
         .optional({ nullable: true, checkFalsy: true })
         .isIn([
             // Administrative Roles
-            'Principal', 'Vice-Principal', 'Headmaster', 'Administrator',
+            'Principal', 'Vice-Principal',  'Administrator',
             // Teaching Roles
-            'Senior Teacher', 'Teacher', 'Assistant Teacher', 'Substitute Teacher',
-            // Support Staff
-            'Librarian', 'Lab Assistant', 'IT Support',
+            'Senior Teacher', 'Teacher', 'Assistant Teacher',
             // Office Staff
             'Accountant', 'Office Clerk', 'Receptionist',
             // Other Staff
-            'Security Guard', 'Cleaner', 'Driver', 'Nurse'
+            'Security Guard', 'Cleaner', 'Driver'
         ])
         .withMessage('Invalid designation selected'),
 
@@ -704,7 +700,7 @@ const paginationAndFilterValidation = [
             // Administrative Departments
             'Administration', 'Admissions', 'Accounts', 'Human Resources',
             // Support Departments
-            'IT Support', 'Library', 'Transport', 'Hostel', 'Security', 'Maintenance'
+            'IT Support', 'Library', 'Transport', 'Hostel', 'Security', 'General'
         ])
         .withMessage('Invalid department for filtering'),
     
@@ -712,15 +708,14 @@ const paginationAndFilterValidation = [
         .optional()
         .isIn([
             // Administrative Roles
-            'Principal', 'Vice-Principal', 'Headmaster', 'Administrator',
+            'Principal', 'Vice-Principal', 'Administrator',
             // Teaching Roles
-            'Senior Teacher', 'Teacher', 'Assistant Teacher', 'Substitute Teacher',
-            // Support Staff
-            'Librarian', 'Lab Assistant', 'IT Support',
+            'Senior Teacher', 'Teacher', 'Assistant Teacher', 
+            
             // Office Staff
             'Accountant', 'Office Clerk', 'Receptionist',
             // Other Staff
-            'Security Guard', 'Cleaner', 'Driver', 'Nurse'
+            'Security Guard', 'Cleaner', 'Driver'
         ])
         .withMessage('Invalid designation for filtering'),
     
