@@ -17,7 +17,9 @@ const getConsolidatedAttendanceBody = Joi.object({
         'date.base': 'toDate must be a valid date'
     }),
     classId: Joi.alternatives().try(Joi.number().integer(), Joi.string()).optional().allow(null, ''),
-    sectionId: Joi.alternatives().try(Joi.number().integer(), Joi.string()).optional().allow(null, '')
+    sectionId: Joi.alternatives().try(Joi.number().integer(), Joi.string()).optional().allow(null, ''),
+    limit: Joi.number().integer().min(1).max(50000).optional(),
+    offset: Joi.number().integer().min(0).optional()
 });
 
 module.exports = {

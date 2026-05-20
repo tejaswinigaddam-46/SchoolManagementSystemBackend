@@ -8,25 +8,49 @@ const UserModel = require('../models/user.model');
 const SectionSubjectModel = require('../models/sectionSubject.model');
 const LeaveModel = require('../models/leave.model');
 
-async function getConsolidatedAttendance(campusId, roles, yearName, startDate, endDate, tenantId, classId = null, sectionId = null) {
+async function getConsolidatedAttendance(
+    campusId,
+    roles,
+    yearName,
+    startDate,
+    endDate,
+    tenantId,
+    classId = null,
+    sectionId = null,
+    options = {}
+) {
     const client = await pool.connect();
+    const traceId = options?.traceId;
+    const runId = options?.runId || 'post';
+    const t0 = Date.now();
     try {
         logger.info('Service.getConsolidatedAttendance called', {
             campusId, roles, yearName, startDate, endDate, tenantId, classId, sectionId
         });
 
+        // #region debug-point A:service-entry
+        (() => { const fs = require('fs'); const ps = ['.dbg/consolidated-attendance-timeout.env', '../.dbg/consolidated-attendance-timeout.env']; let u = 'http://127.0.0.1:7777/event', s = 'consolidated-attendance-timeout'; for (const p of ps) { try { const e = fs.readFileSync(p, 'utf8'); u = e.match(/DEBUG_SERVER_URL=(.+)/)?.[1] || u; s = e.match(/DEBUG_SESSION_ID=(.+)/)?.[1] || s; break; } catch {} } fetch(u, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionId: s, runId, hypothesisId: 'A', location: 'consolidatedAttendance.service.js', msg: '[DEBUG] service start', data: { campusId, startDate, endDate, rolesCount: Array.isArray(roles) ? roles.length : 0, yearNamePresent: Boolean(yearName), classIdPresent: Boolean(classId), sectionIdPresent: Boolean(sectionId), limit: Number.isInteger(options?.limit) ? options.limit : null, offset: Number.isInteger(options?.offset) ? options.offset : null }, ts: Date.now(), traceId }) }).catch(() => {}) })();
+        // #endregion
+
         // 1. Sync Student Attendance if needed
+        const tSync0 = Date.now();
         const isStudent = roles && roles.some(r => r.toLowerCase() === 'student');
-        if (isStudent) {
+        const hasYearName = yearName !== null && yearName !== undefined && String(yearName).trim() !== '';
+        if (isStudent && hasYearName) {
             await AttendanceModel.syncStudentAttendanceInRange(client, campusId, startDate, endDate, yearName);
         }
+        // #region debug-point C:sync-done
+        (() => { const fs = require('fs'); const ps = ['.dbg/consolidated-attendance-timeout.env', '../.dbg/consolidated-attendance-timeout.env']; let u = 'http://127.0.0.1:7777/event', s = 'consolidated-attendance-timeout'; for (const p of ps) { try { const e = fs.readFileSync(p, 'utf8'); u = e.match(/DEBUG_SERVER_URL=(.+)/)?.[1] || u; s = e.match(/DEBUG_SESSION_ID=(.+)/)?.[1] || s; break; } catch {} } fetch(u, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionId: s, runId, hypothesisId: 'C', location: 'consolidatedAttendance.service.js', msg: '[DEBUG] sync step completed', data: { elapsedMs: Date.now() - tSync0, didSync: Boolean(isStudent && hasYearName) }, ts: Date.now(), traceId }) }).catch(() => {}) })();
+        // #endregion
 
         // 2. Fetch Users with Academic Year Context
+        const tUsers0 = Date.now();
+        const academicFilters = hasYearName ? { yearName, classId, sectionId } : {};
         const users = await UserModel.getActiveUsersWithAcademicFilters(
             tenantId,
             campusId,
             roles,
-            { yearName, classId, sectionId },
+            academicFilters,
             client
         );
 
@@ -35,6 +59,7 @@ async function getConsolidatedAttendance(campusId, roles, yearName, startDate, e
         const teacherAyMap = new Map();
         
         if (teacherIds.length > 0) {
+            const tTeacherAy0 = Date.now();
             const rows = await SectionSubjectModel.getTeacherAcademicYears(teacherIds, client);
             rows.forEach(row => {
                 if (!teacherAyMap.has(row.teacher_user_id)) {
@@ -42,49 +67,56 @@ async function getConsolidatedAttendance(campusId, roles, yearName, startDate, e
                 }
                 teacherAyMap.get(row.teacher_user_id).add(row.academic_year_id);
             });
+            // #region debug-point A:teacher-ay-done
+            (() => { const fs = require('fs'); const ps = ['.dbg/consolidated-attendance-timeout.env', '../.dbg/consolidated-attendance-timeout.env']; let u = 'http://127.0.0.1:7777/event', s = 'consolidated-attendance-timeout'; for (const p of ps) { try { const e = fs.readFileSync(p, 'utf8'); u = e.match(/DEBUG_SERVER_URL=(.+)/)?.[1] || u; s = e.match(/DEBUG_SESSION_ID=(.+)/)?.[1] || s; break; } catch {} } fetch(u, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionId: s, runId, hypothesisId: 'A', location: 'consolidatedAttendance.service.js', msg: '[DEBUG] teacher academic years loaded', data: { elapsedMs: Date.now() - tTeacherAy0, teacherCount: teacherIds.length, rows: rows.length }, ts: Date.now(), traceId }) }).catch(() => {}) })();
+            // #endregion
         }
 
+        // #region debug-point A:users-done
+        (() => { const fs = require('fs'); const ps = ['.dbg/consolidated-attendance-timeout.env', '../.dbg/consolidated-attendance-timeout.env']; let u = 'http://127.0.0.1:7777/event', s = 'consolidated-attendance-timeout'; for (const p of ps) { try { const e = fs.readFileSync(p, 'utf8'); u = e.match(/DEBUG_SERVER_URL=(.+)/)?.[1] || u; s = e.match(/DEBUG_SESSION_ID=(.+)/)?.[1] || s; break; } catch {} } fetch(u, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionId: s, runId, hypothesisId: 'A', location: 'consolidatedAttendance.service.js', msg: '[DEBUG] users loaded', data: { elapsedMs: Date.now() - tUsers0, users: users.length, teachers: teacherIds.length }, ts: Date.now(), traceId }) }).catch(() => {}) })();
+        // #endregion
+
         // 3. Fetch Holidays, Policies, Special Days
+        const tConfig0 = Date.now();
         const holidays = await HolidayModel.getAll(campusId, { startDate, endDate });
         const policies = await WeekendPolicyModel.getAllByCampus(campusId);
         const specialDays = await SpecialWorkingDayModel.getAll(campusId, { startDate, endDate });
 
-        // LOGGING FOR DEBUGGING
-        logger.info('DEBUG: Fetched Global Config', {
+        logger.info('Consolidated attendance config loaded', {
             holidaysCount: holidays.length,
             policiesCount: policies.length,
-            specialDaysCount: specialDays.length,
-            holidays,
-            policies,
-            specialDays
+            specialDaysCount: specialDays.length
         });
+        // #region debug-point A:config-done
+        (() => { const fs = require('fs'); const ps = ['.dbg/consolidated-attendance-timeout.env', '../.dbg/consolidated-attendance-timeout.env']; let u = 'http://127.0.0.1:7777/event', s = 'consolidated-attendance-timeout'; for (const p of ps) { try { const e = fs.readFileSync(p, 'utf8'); u = e.match(/DEBUG_SERVER_URL=(.+)/)?.[1] || u; s = e.match(/DEBUG_SESSION_ID=(.+)/)?.[1] || s; break; } catch {} } fetch(u, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionId: s, runId, hypothesisId: 'A', location: 'consolidatedAttendance.service.js', msg: '[DEBUG] holidays/policies/special-days loaded', data: { elapsedMs: Date.now() - tConfig0, holidays: holidays.length, policies: policies.length, specialDays: specialDays.length }, ts: Date.now(), traceId }) }).catch(() => {}) })();
+        // #endregion
 
         // 4. Fetch Existing Attendance
-        const attRows = await AttendanceModel.getUserAttendanceByCampusAndDateRange(campusId, startDate, endDate, client);
-        
-        const attMap = new Map();
-        attRows.forEach(r => {
-            const d = r.attendance_date_str;
-            attMap.set(`${r.username}_${d}`, r);
-        });
+        const tAttendance0 = Date.now();
+        const usernames = users.map(u => u.username);
+        const attRows = await AttendanceModel.getUserAttendanceByCampusAndDateRange(
+            campusId,
+            startDate,
+            endDate,
+            usernames,
+            client
+        );
+        // #region debug-point A:attendance-done
+        (() => { const fs = require('fs'); const ps = ['.dbg/consolidated-attendance-timeout.env', '../.dbg/consolidated-attendance-timeout.env']; let u = 'http://127.0.0.1:7777/event', s = 'consolidated-attendance-timeout'; for (const p of ps) { try { const e = fs.readFileSync(p, 'utf8'); u = e.match(/DEBUG_SERVER_URL=(.+)/)?.[1] || u; s = e.match(/DEBUG_SESSION_ID=(.+)/)?.[1] || s; break; } catch {} } fetch(u, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionId: s, runId, hypothesisId: 'A', location: 'consolidatedAttendance.service.js', msg: '[DEBUG] user_attendance loaded', data: { elapsedMs: Date.now() - tAttendance0, usernames: usernames.length, rows: attRows.length }, ts: Date.now(), traceId }) }).catch(() => {}) })();
+        // #endregion
 
-        logger.info('DEBUG: Attendance Map Stats', {
-            totalRecords: attRows.length,
-            sampleKey: attMap.size > 0 ? Array.from(attMap.keys())[0] : 'None',
-            queryRange: { startDate, endDate }
-        });
-        
-        logger.info('DEBUG: Attendance Map Keys Sample', { 
-            count: attMap.size, 
-            keys: Array.from(attMap.keys()).slice(0, 10) 
-        });
+        const attByUser = new Map();
+        for (const r of attRows) {
+            if (!attByUser.has(r.username)) attByUser.set(r.username, new Map());
+            attByUser.get(r.username).set(r.attendance_date_str, r);
+        }
 
         // 4.5 Fetch Leave Counts
-        const usernames = users.map(u => u.username);
         const leaveStatsMap = new Map();
         
         if (usernames.length > 0) {
             try {
+                const tLeaves0 = Date.now();
                 const rows = await LeaveModel.getLeaveStatsByUsernamesAndDateRange(usernames, startDate, endDate, client);
                 rows.forEach(r => {
                     leaveStatsMap.set(r.username, {
@@ -92,6 +124,9 @@ async function getConsolidatedAttendance(campusId, roles, yearName, startDate, e
                         approved: parseInt(r.approved_count || 0)
                     });
                 });
+                // #region debug-point A:leaves-done
+                (() => { const fs = require('fs'); const ps = ['.dbg/consolidated-attendance-timeout.env', '../.dbg/consolidated-attendance-timeout.env']; let u = 'http://127.0.0.1:7777/event', s = 'consolidated-attendance-timeout'; for (const p of ps) { try { const e = fs.readFileSync(p, 'utf8'); u = e.match(/DEBUG_SERVER_URL=(.+)/)?.[1] || u; s = e.match(/DEBUG_SESSION_ID=(.+)/)?.[1] || s; break; } catch {} } fetch(u, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionId: s, runId, hypothesisId: 'A', location: 'consolidatedAttendance.service.js', msg: '[DEBUG] leave stats loaded', data: { elapsedMs: Date.now() - tLeaves0, rows: rows.length }, ts: Date.now(), traceId }) }).catch(() => {}) })();
+                // #endregion
             } catch (err) {
                 logger.error('Error fetching leave stats', { error: err.message });
                 // Continue without stats rather than failing everything
@@ -99,216 +134,229 @@ async function getConsolidatedAttendance(campusId, roles, yearName, startDate, e
         }
 
         // 5. Build Result
-        const results = [];
+        const tBuild0 = Date.now();
         const start = new Date(startDate);
         const end = new Date(endDate);
-        
-        const getDayStatus = (dateStr, ayIds, role) => {
-             const d = new Date(dateStr);
-             const dayOfWeek = d.getDay();
-             
-             let applicableAyIds = [];
-             if (role === 'Student' || role === 'Teacher') {
-                 applicableAyIds = Array.from(ayIds || []);
-             } else {
-                 applicableAyIds = policies.map(p => p.academic_year_id);
-             }
+        const toDateStr = (dt) => dt.toISOString().slice(0, 10);
 
-             // Check Special Working Day (Overrides Holiday)
-             const isSWD = specialDays.some(sd => {
-                 const sdDate = new Date(sd.work_date).toISOString().split('T')[0];
-                 if (sdDate !== dateStr) return false;
-                 if (!sd.academic_year_ids || sd.academic_year_ids.length === 0) return true;
-                 if (role !== 'Student' && role !== 'Teacher') return true;
-                 return sd.academic_year_ids.some(id => applicableAyIds.includes(id));
-             });
-             
-             if (isSWD) return { isHoliday: false, isHalfDay: false }; // Assuming SWD is full day unless specified otherwise (model check needed if SWD has half day flag?)
+        const days = [];
+        for (let dt = new Date(start); dt <= end; dt.setUTCDate(dt.getUTCDate() + 1)) {
+            days.push({ dateStr: toDateStr(dt), dayOfWeek: dt.getUTCDay() });
+        }
 
-             // Check Holidays (Events)
-             const isEvent = holidays.some(h => {
-                 const s = new Date(h.start_date).toISOString().split('T')[0];
-                 const e = new Date(h.end_date || h.start_date).toISOString().split('T')[0];
-                 if (dateStr < s || dateStr > e) return false;
-                 if (!h.academic_year_ids || h.academic_year_ids.length === 0) return true;
-                 if (role !== 'Student' && role !== 'Teacher') return true;
-                 return h.academic_year_ids.some(id => applicableAyIds.includes(id));
-             });
-             
-             if (isEvent) return { isHoliday: true, isHalfDay: false };
+        const policyByAyId = new Map();
+        for (const p of policies) policyByAyId.set(p.academic_year_id, p);
 
-             // Check Weekend Policy
-             let isHoliday = false;
-             let isHalfDay = false;
+        const anySatHalfDay = policies.some(p => p.is_saturday_half_day);
+        const anySatHoliday = policies.some(p => p.is_saturday_holiday);
+        const anySunHoliday = policies.some(p => p.is_sunday_holiday);
+        const satAnyWorkingFull = policies.some(p => !p.is_saturday_holiday && !p.is_saturday_half_day);
+        const satAllHoliday = policies.length > 0 ? policies.every(p => p.is_saturday_holiday) : false;
+        const sunAllHoliday = policies.length > 0 ? policies.every(p => p.is_sunday_holiday) : false;
 
-             if (role === 'Student' || role === 'Teacher') {
-                 if (applicableAyIds.length === 0) {
-                     // No AY context -> Check any policy matching the day
-                     // If ALL policies say it's a holiday, it's a holiday? Or if ANY?
-                     // Original logic: "checkWeekendAny" -> returns true if ANY policy says it's a holiday.
-                     // But wait, if one policy says Saturday is holiday, and another says it's half day... 
-                     // Safe bet: if any policy says holiday, treat as holiday? 
-                     // Or prioritize working?
-                     // Let's assume strict: if any policy applicable says holiday, it is.
-                     
-                     // Revised Logic for "Half Day overrides Holiday":
-                     // If it is Saturday:
-                     // If ANY policy says Half Day -> It is Half Day (Not Holiday)
-                     // Else If ANY policy says Holiday -> It is Holiday
-                     
-                     if (dayOfWeek === 6) {
-                         const anyHalfDay = policies.some(p => p.is_saturday_half_day);
-                         if (anyHalfDay) {
-                             isHoliday = false;
-                             isHalfDay = true;
-                         } else {
-                             const anyHoliday = policies.some(p => p.is_saturday_holiday);
-                             isHoliday = anyHoliday;
-                         }
-                     } else if (dayOfWeek === 0) {
-                         // Sunday
-                         const anyHoliday = policies.some(p => p.is_sunday_holiday);
-                         isHoliday = anyHoliday;
-                     }
+        const specialByDate = new Map();
+        for (const sd of specialDays) {
+            const dateStr = toDateStr(new Date(sd.work_date));
+            if (!specialByDate.has(dateStr)) specialByDate.set(dateStr, []);
+            specialByDate.get(dateStr).push(sd);
+        }
 
-                 } else {
-                     // We have specific AY IDs. Check if working in ANY of them.
-                     const statuses = applicableAyIds.map(ayId => {
-                         const p = policies.find(x => x.academic_year_id === ayId);
-                         if (!p) return { isHoliday: false, isHalfDay: false }; // Default working
-                         if (dayOfWeek === 0) {
-                             return { isHoliday: p.is_sunday_holiday, isHalfDay: false };
-                         }
-                         if (dayOfWeek === 6) {
-                             if (p.is_saturday_half_day) return { isHoliday: false, isHalfDay: true };
-                             if (p.is_saturday_holiday) return { isHoliday: true, isHalfDay: false };
-                             return { isHoliday: false, isHalfDay: false };
-                         }
-                         return { isHoliday: false, isHalfDay: false };
-                     });
-
-                     // If user is working in ANY of the contexts, they are working.
-                     // Priority: Working (Half) > Working (Full) > Holiday?
-                     // Or: Working (Full) > Working (Half) > Holiday
-                     
-                     const isWorkingFull = statuses.some(s => !s.isHoliday && !s.isHalfDay);
-                     const isWorkingHalf = statuses.some(s => !s.isHoliday && s.isHalfDay);
-                     
-                     if (isWorkingFull) {
-                         isHoliday = false;
-                         isHalfDay = false;
-                     } else if (isWorkingHalf) {
-                         isHoliday = false;
-                         isHalfDay = true;
-                     } else {
-                         isHoliday = true; // All contexts say holiday
-                     }
-                 }
-             } else {
-                 // Other roles (Admin, etc) - Check against ALL policies
-                 // Logic: If they are required to work by ANY policy, they work.
-                 // Similar to above.
-                 
-                 if (dayOfWeek === 6) {
-                     const anyHalfDay = policies.some(p => p.is_saturday_half_day);
-                     const anyWorking = policies.some(p => !p.is_saturday_holiday && !p.is_saturday_half_day);
-                     
-                     if (anyWorking) {
-                         isHoliday = false;
-                         isHalfDay = false;
-                     } else if (anyHalfDay) {
-                         isHoliday = false;
-                         isHalfDay = true;
-                     } else {
-                         // Check if all are holidays? 
-                         // Or if any is holiday?
-                         // If I am Admin, and School A is open, I work.
-                         // So if ANY policy says working, I work.
-                         // Only if ALL policies say Holiday, I don't work.
-                         
-                         const allHoliday = policies.every(p => p.is_saturday_holiday);
-                         isHoliday = allHoliday;
-                     }
-                 } else if (dayOfWeek === 0) {
-                     const allHoliday = policies.every(p => p.is_sunday_holiday);
-                     isHoliday = allHoliday;
-                 }
-             }
-             
-             return { isHoliday, isHalfDay };
-        };
-        
-        for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-            const dateStr = d.toISOString().split('T')[0];
-            
-            for (const user of users) {
-                const key = `${user.username}_${dateStr}`;
-                const att = attMap.get(key);
-                
-                let ayIds = new Set();
-                if (user.role === 'Student') {
-                    if (user.student_ay_id) ayIds.add(user.student_ay_id);
-                } else if (user.role === 'Teacher') {
-                    const tIds = teacherAyMap.get(user.user_id);
-                    if (tIds) tIds.forEach(id => ayIds.add(id));
-                }
-                
-                let status = 'No Attendance';
-                let duration = '00:00';
-                let total_duration = '00:00';
-                let login_time = null;
-                let logout_time = null;
-                
-                if (att) {
-                    status = att.status || 'No Attendance';
-                    duration = att.duration ? String(att.duration).substring(0, 5) : '00:00';
-                    total_duration = att.total_duration ? String(att.total_duration).substring(0, 5) : '00:00';
-                    login_time = att.login_time;
-                    logout_time = att.logout_time;
-                }
-                
-                if (user.role === 'Teacher') {
-                    // LOGGING TEACHER CONTEXT
-                    logger.info(`DEBUG: Teacher Context ${user.username}`, {
-                        campusId,
-                        teacherName: `${user.first_name} ${user.last_name}`,
-                        associatedAyIds: Array.from(ayIds)
-                    });
-                }
-                
-                const { isHoliday, isHalfDay } = getDayStatus(dateStr, ayIds, user.role);
-                const leaveStats = leaveStatsMap.get(user.username) || { pending: 0, approved: 0 };
-                
-                // Optional: Inject default duration for half-day if requested by user "default of 4 hours"
-                // Assuming this means "display 4 hours expectation" or "if present, expect 4 hours"?
-                // If I change duration here, it fakes attendance. I shouldn't fake attendance.
-                // I will just return is_half_day and let frontend decide or just rely on is_holiday=false.
-                // However, user said "mark it as working day with default of 4 hours".
-                // I'll add a field `expected_hours`.
-                
-                results.push({
-                    attendance_date: dateStr,
-                    user_id: user.user_id,
-                    username: user.username,
-                    first_name: user.first_name,
-                    last_name: user.last_name,
-                    role: user.role,
-                    status,
-                    duration,
-                    total_duration,
-                    login_time,
-                    logout_time,
-                    is_holiday: isHoliday,
-                    is_half_day: isHalfDay,
-                    expected_hours: isHalfDay ? '04:00' : '08:00', // Simple default
-                    leaves_pending: leaveStats.pending,
-                    leaves_approved: leaveStats.approved
-                });
+        const holidayByDate = new Map();
+        for (const h of holidays) {
+            const s = new Date(h.start_date);
+            const e = new Date(h.end_date || h.start_date);
+            const rangeStart = s < start ? new Date(start) : new Date(s);
+            const rangeEnd = e > end ? new Date(end) : new Date(e);
+            for (let dt = new Date(rangeStart); dt <= rangeEnd; dt.setUTCDate(dt.getUTCDate() + 1)) {
+                const dateStr = toDateStr(dt);
+                if (!holidayByDate.has(dateStr)) holidayByDate.set(dateStr, []);
+                holidayByDate.get(dateStr).push(h);
             }
         }
-        
+
+        const hasAyIntersection = (recordAyIds, ayIdSet) => {
+            if (!recordAyIds || recordAyIds.length === 0) return true;
+            if (!ayIdSet || ayIdSet.size === 0) return false;
+            for (const id of recordAyIds) {
+                if (ayIdSet.has(id)) return true;
+            }
+            return false;
+        };
+
+        const getDayStatus = (dateStr, dayOfWeek, userAyIds, role) => {
+            const isStudentOrTeacher = role === 'Student' || role === 'Teacher';
+
+            const specialList = specialByDate.get(dateStr) || [];
+            for (const sd of specialList) {
+                if (!sd.academic_year_ids || sd.academic_year_ids.length === 0) return { isHoliday: false, isHalfDay: false };
+                if (!isStudentOrTeacher) return { isHoliday: false, isHalfDay: false };
+                if (hasAyIntersection(sd.academic_year_ids, userAyIds)) return { isHoliday: false, isHalfDay: false };
+            }
+
+            const holidayList = holidayByDate.get(dateStr) || [];
+            for (const h of holidayList) {
+                if (!h.academic_year_ids || h.academic_year_ids.length === 0) return { isHoliday: true, isHalfDay: false };
+                if (!isStudentOrTeacher) return { isHoliday: true, isHalfDay: false };
+                if (hasAyIntersection(h.academic_year_ids, userAyIds)) return { isHoliday: true, isHalfDay: false };
+            }
+
+            if (dayOfWeek !== 0 && dayOfWeek !== 6) return { isHoliday: false, isHalfDay: false };
+
+            if (isStudentOrTeacher) {
+                if (!userAyIds || userAyIds.size === 0) {
+                    if (dayOfWeek === 6) {
+                        if (anySatHalfDay) return { isHoliday: false, isHalfDay: true };
+                        return { isHoliday: anySatHoliday, isHalfDay: false };
+                    }
+                    return { isHoliday: anySunHoliday, isHalfDay: false };
+                }
+
+                let isWorkingFull = false;
+                let isWorkingHalf = false;
+
+                for (const ayId of userAyIds) {
+                    const p = policyByAyId.get(ayId);
+                    if (!p) {
+                        isWorkingFull = true;
+                        break;
+                    }
+
+                    if (dayOfWeek === 0) {
+                        if (!p.is_sunday_holiday) {
+                            isWorkingFull = true;
+                            break;
+                        }
+                        continue;
+                    }
+
+                    if (p.is_saturday_half_day) {
+                        isWorkingHalf = true;
+                        continue;
+                    }
+
+                    if (!p.is_saturday_holiday) {
+                        isWorkingFull = true;
+                        break;
+                    }
+                }
+
+                if (isWorkingFull) return { isHoliday: false, isHalfDay: false };
+                if (isWorkingHalf) return { isHoliday: false, isHalfDay: true };
+                return { isHoliday: true, isHalfDay: false };
+            }
+
+            if (dayOfWeek === 6) {
+                if (satAnyWorkingFull) return { isHoliday: false, isHalfDay: false };
+                if (anySatHalfDay) return { isHoliday: false, isHalfDay: true };
+                return { isHoliday: satAllHoliday, isHalfDay: false };
+            }
+
+            return { isHoliday: sunAllHoliday, isHalfDay: false };
+        };
+
+        const userContexts = users.map(user => {
+            const ayIds = new Set();
+            if (user.role === 'Student') {
+                if (user.student_ay_id) ayIds.add(user.student_ay_id);
+            } else if (user.role === 'Teacher') {
+                const tIds = teacherAyMap.get(user.user_id);
+                if (tIds) tIds.forEach(id => ayIds.add(id));
+            }
+            return { user, ayIds };
+        });
+
+        const buildRow = (dateStr, dayOfWeek, ctx) => {
+            const { user, ayIds } = ctx;
+            const att = attByUser.get(user.username)?.get(dateStr);
+
+            let status = 'No Attendance';
+            let duration = '00:00';
+            let total_duration = '00:00';
+            let login_time = null;
+            let logout_time = null;
+
+            if (att) {
+                status = att.status || 'No Attendance';
+                duration = att.duration ? String(att.duration).substring(0, 5) : '00:00';
+                total_duration = att.total_duration ? String(att.total_duration).substring(0, 5) : '00:00';
+                login_time = att.login_time;
+                logout_time = att.logout_time;
+            }
+
+            const { isHoliday, isHalfDay } = getDayStatus(dateStr, dayOfWeek, ayIds, user.role);
+            const leaveStats = leaveStatsMap.get(user.username) || { pending: 0, approved: 0 };
+
+            return {
+                attendance_date: dateStr,
+                user_id: user.user_id,
+                username: user.username,
+                first_name: user.first_name,
+                last_name: user.last_name,
+                role: user.role,
+                status,
+                duration,
+                total_duration,
+                login_time,
+                logout_time,
+                is_holiday: isHoliday,
+                is_half_day: isHalfDay,
+                expected_hours: isHalfDay ? '04:00' : '08:00',
+                leaves_pending: leaveStats.pending,
+                leaves_approved: leaveStats.approved
+            };
+        };
+
+        const limitRaw = options?.limit;
+        const offsetRaw = options?.offset;
+        const limit = Number.isInteger(limitRaw) ? limitRaw : null;
+        const offset = Number.isInteger(offsetRaw) ? offsetRaw : 0;
+
+        if (limit && limit > 0) {
+            const usersCount = userContexts.length;
+            const total = days.length * usersCount;
+            const startIndex = Math.max(0, offset);
+            const endIndex = Math.min(total, startIndex + limit);
+            const rows = [];
+
+            for (let i = startIndex; i < endIndex; i++) {
+                const dayIdx = Math.floor(i / usersCount);
+                const userIdx = i % usersCount;
+                const day = days[dayIdx];
+                const ctx = userContexts[userIdx];
+                rows.push(buildRow(day.dateStr, day.dayOfWeek, ctx));
+            }
+
+            // #region debug-point B:build-done-paged
+            (() => { const fs = require('fs'); const ps = ['.dbg/consolidated-attendance-timeout.env', '../.dbg/consolidated-attendance-timeout.env']; let u = 'http://127.0.0.1:7777/event', s = 'consolidated-attendance-timeout'; for (const p of ps) { try { const e = fs.readFileSync(p, 'utf8'); u = e.match(/DEBUG_SERVER_URL=(.+)/)?.[1] || u; s = e.match(/DEBUG_SESSION_ID=(.+)/)?.[1] || s; break; } catch {} } fetch(u, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionId: s, runId, hypothesisId: 'B', location: 'consolidatedAttendance.service.js', msg: '[DEBUG] build completed (paged)', data: { elapsedMs: Date.now() - tBuild0, days: days.length, users: usersCount, rows: rows.length, total, limit, offset: startIndex }, ts: Date.now(), traceId }) }).catch(() => {}) })();
+            // #endregion
+
+            // #region debug-point A:service-exit-paged
+            (() => { const fs = require('fs'); const ps = ['.dbg/consolidated-attendance-timeout.env', '../.dbg/consolidated-attendance-timeout.env']; let u = 'http://127.0.0.1:7777/event', s = 'consolidated-attendance-timeout'; for (const p of ps) { try { const e = fs.readFileSync(p, 'utf8'); u = e.match(/DEBUG_SERVER_URL=(.+)/)?.[1] || u; s = e.match(/DEBUG_SESSION_ID=(.+)/)?.[1] || s; break; } catch {} } fetch(u, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionId: s, runId, hypothesisId: 'A', location: 'consolidatedAttendance.service.js', msg: '[DEBUG] service end (paged)', data: { totalElapsedMs: Date.now() - t0 }, ts: Date.now(), traceId }) }).catch(() => {}) })();
+            // #endregion
+
+            return { rows, total, limit, offset: startIndex };
+        }
+
+        const results = [];
+        for (const day of days) {
+            for (const ctx of userContexts) {
+                results.push(buildRow(day.dateStr, day.dayOfWeek, ctx));
+            }
+        }
+
+        // #region debug-point B:build-done-unpaged
+        (() => { const fs = require('fs'); const ps = ['.dbg/consolidated-attendance-timeout.env', '../.dbg/consolidated-attendance-timeout.env']; let u = 'http://127.0.0.1:7777/event', s = 'consolidated-attendance-timeout'; for (const p of ps) { try { const e = fs.readFileSync(p, 'utf8'); u = e.match(/DEBUG_SERVER_URL=(.+)/)?.[1] || u; s = e.match(/DEBUG_SESSION_ID=(.+)/)?.[1] || s; break; } catch {} } fetch(u, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionId: s, runId, hypothesisId: 'B', location: 'consolidatedAttendance.service.js', msg: '[DEBUG] build completed (unpaged)', data: { elapsedMs: Date.now() - tBuild0, days: days.length, users: userContexts.length, rows: results.length }, ts: Date.now(), traceId }) }).catch(() => {}) })();
+        // #endregion
+
+        // #region debug-point A:service-exit-unpaged
+        (() => { const fs = require('fs'); const ps = ['.dbg/consolidated-attendance-timeout.env', '../.dbg/consolidated-attendance-timeout.env']; let u = 'http://127.0.0.1:7777/event', s = 'consolidated-attendance-timeout'; for (const p of ps) { try { const e = fs.readFileSync(p, 'utf8'); u = e.match(/DEBUG_SERVER_URL=(.+)/)?.[1] || u; s = e.match(/DEBUG_SESSION_ID=(.+)/)?.[1] || s; break; } catch {} } fetch(u, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionId: s, runId, hypothesisId: 'A', location: 'consolidatedAttendance.service.js', msg: '[DEBUG] service end (unpaged)', data: { totalElapsedMs: Date.now() - t0 }, ts: Date.now(), traceId }) }).catch(() => {}) })();
+        // #endregion
+
         return results;
     } catch (error) {
+        // #region debug-point D:service-error
+        (() => { const fs = require('fs'); const ps = ['.dbg/consolidated-attendance-timeout.env', '../.dbg/consolidated-attendance-timeout.env']; let u = 'http://127.0.0.1:7777/event', s = 'consolidated-attendance-timeout'; for (const p of ps) { try { const e = fs.readFileSync(p, 'utf8'); u = e.match(/DEBUG_SERVER_URL=(.+)/)?.[1] || u; s = e.match(/DEBUG_SESSION_ID=(.+)/)?.[1] || s; break; } catch {} } fetch(u, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionId: s, runId, hypothesisId: 'D', location: 'consolidatedAttendance.service.js', msg: '[DEBUG] service error', data: { error: error?.message, totalElapsedMs: Date.now() - t0 }, ts: Date.now(), traceId }) }).catch(() => {}) })();
+        // #endregion
         logger.error('Service.getConsolidatedAttendance error', { error: error.message, stack: error.stack });
         throw error;
     } finally {

@@ -259,57 +259,54 @@ const deleteAttendance = async (client, eventId, eventInstanceId, studentIds) =>
  * @param {string} academicYear 
  */
 const syncStudentAttendanceInRange = async (client, campusId, startDate, endDate, academicYear) => {
-    // 1. Aggregate event_attendance for all students in the range
-    // We join with users to get username and ensure role is Student
-    // We join with calendar_events to ensure campus match (though event_attendance should be enough if we trust the inputs)
-    // Actually event_attendance has audience_id (user_id).
-    
     const query = `
-        SELECT 
-            ea.audience_id,
-            u.username,
-            u.role,
-            ea.attendance_date,
-            SUM(ea.actual_present_hours) as total_actual,
-            SUM(ea.total_scheduled_hours) as total_scheduled
-        FROM event_attendance ea
-        JOIN users u ON ea.audience_id = u.user_id
-        JOIN calendar_events ce ON ea.event_id = ce.event_id
-        WHERE ce.campus_id = $1
-          AND ea.attendance_date BETWEEN $2 AND $3
-          AND u.role = 'Student'
-        GROUP BY ea.audience_id, u.username, u.role, ea.attendance_date
+        WITH agg AS (
+            SELECT
+                u.username,
+                u.role,
+                ea.attendance_date,
+                COALESCE(SUM(ea.actual_present_hours), 0) AS total_actual,
+                COALESCE(SUM(ea.total_scheduled_hours), 0) AS total_scheduled
+            FROM event_attendance ea
+            JOIN users u ON ea.audience_id = u.user_id
+            JOIN calendar_events ce ON ea.event_id = ce.event_id
+            WHERE ce.campus_id = $1
+              AND ea.attendance_date BETWEEN $2::date AND $3::date
+              AND u.role = 'Student'
+            GROUP BY u.username, u.role, ea.attendance_date
+        )
+        INSERT INTO user_attendance (
+            campus_id, year_name, username, role, attendance_date,
+            status, duration, total_duration, login_time, logout_time
+        )
+        SELECT
+            $1,
+            $4,
+            a.username,
+            a.role,
+            a.attendance_date,
+            CASE
+                WHEN a.total_scheduled > 0 AND (a.total_actual / a.total_scheduled) >= 0.5 THEN 'Present'::public.attendance_status_enum
+                ELSE 'Absent'::public.attendance_status_enum
+            END,
+            (a.total_actual * INTERVAL '1 hour'),
+            (a.total_scheduled * INTERVAL '1 hour'),
+            '00:00:00'::time,
+            '00:00:00'::time
+        FROM agg a
+        ON CONFLICT (username, attendance_date)
+        DO UPDATE SET
+            campus_id = EXCLUDED.campus_id,
+            year_name = EXCLUDED.year_name,
+            role = EXCLUDED.role,
+            status = EXCLUDED.status,
+            duration = EXCLUDED.duration,
+            total_duration = EXCLUDED.total_duration,
+            login_time = EXCLUDED.login_time,
+            logout_time = EXCLUDED.logout_time
     `;
 
-    const result = await client.query(query, [campusId, startDate, endDate]);
-
-    // 2. Upsert into user_attendance
-    // We need to iterate and upsert.
-    // Optimization: We could do a bulk upsert if we construct a large query, but loop is safer for now.
-    
-    for (const row of result.rows) {
-        const { username, role, attendance_date, total_actual, total_scheduled } = row;
-        const durationVal = parseFloat(total_actual || 0);
-        const totalDurationVal = parseFloat(total_scheduled || 0);
-
-        let userStatus = 'Absent';
-        if (totalDurationVal > 0 && (durationVal / totalDurationVal) >= 0.5) {
-            userStatus = 'Present';
-        }
-
-        await UserModel.upsertSingleUserAttendance(client, {
-            campusId,
-            yearName: academicYear,
-            username,
-            role,
-            attendanceDate: attendance_date,
-            status: userStatus,
-            duration: `${durationVal} hours`,
-            totalDuration: `${totalDurationVal} hours`,
-            loginTime: '00:00:00',
-            logoutTime: '00:00:00'
-        });
-    }
+    await client.query(query, [campusId, startDate, endDate, academicYear]);
 };
 
 module.exports = {
@@ -322,8 +319,8 @@ module.exports = {
     upsertAttendanceBatch,
     deleteAttendance,
     syncStudentAttendanceInRange,
-    async getUserAttendanceByCampusAndDateRange(campusId, startDate, endDate, client = pool) {
-        const query = `
+    async getUserAttendanceByCampusAndDateRange(campusId, startDate, endDate, usernames = null, client = pool) {
+        let query = `
             SELECT username, TO_CHAR(attendance_date, 'YYYY-MM-DD') as attendance_date_str, status, 
                    TO_CHAR(duration, 'HH24:MI') as duration, 
                    TO_CHAR(total_duration, 'HH24:MI') as total_duration, 
@@ -331,7 +328,14 @@ module.exports = {
             FROM user_attendance
             WHERE campus_id = $1 AND attendance_date BETWEEN $2::date AND $3::date
         `;
-        const res = await client.query(query, [campusId, startDate, endDate]);
+        const values = [campusId, startDate, endDate];
+
+        if (Array.isArray(usernames) && usernames.length > 0) {
+            query += ` AND username = ANY($4::text[])`;
+            values.push(usernames);
+        }
+
+        const res = await client.query(query, values);
         return res.rows;
     }
 };
